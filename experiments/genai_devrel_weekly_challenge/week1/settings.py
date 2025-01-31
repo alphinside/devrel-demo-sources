@@ -10,6 +10,7 @@ from typing import Type, Tuple
 class Settings(BaseSettings):
     ollama_service_url: str
     cloudrun_service_account_key: str
+    chat_history_db_uri: str
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"

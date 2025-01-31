@@ -1,2 +1,3 @@
 ollama_service_url: "your_ollama_service_url.run.app"
 cloudrun_service_account_key: "cloudrun-sa.json"
+chat_history_db_uri: ""postgresql://postgres:postgres@localhost/{database_name}?sslmode=disable""

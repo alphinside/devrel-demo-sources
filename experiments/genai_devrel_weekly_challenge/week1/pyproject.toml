@@ -8,5 +8,8 @@ dependencies = [
     "google-auth>=2.38.0",
     "google-auth-oauthlib>=1.2.1",
     "gradio>=5.14.0",
+    "langgraph>=0.2.69",
+    "langgraph-checkpoint-postgres>=2.0.13",
+    "psycopg-binary>=3.2.4",
     "pydantic-settings[yaml]>=2.7.1",
 ]
