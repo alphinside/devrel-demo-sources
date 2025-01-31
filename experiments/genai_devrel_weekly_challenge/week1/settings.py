@@ -1,5 +1,11 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict, YamlConfigSettingsSource, PydanticBaseSettingsSource
+from pydantic_settings import (
+    BaseSettings,
+    SettingsConfigDict,
+    YamlConfigSettingsSource,
+    PydanticBaseSettingsSource,
+)
 from typing import Type, Tuple
+
 
 class Settings(BaseSettings):
     ollama_service_url: str
@@ -23,6 +29,7 @@ class Settings(BaseSettings):
             YamlConfigSettingsSource(settings_cls),  # Then, try YAML
             env_settings,  # Finally, try environment variables
         )
-    
+
+
 def get_settings() -> Settings:
     return Settings()
