@@ -1,3 +1,4 @@
 settings.yaml
 cloudrun-sa.json
 .gradio
+cloud-sql-proxy
