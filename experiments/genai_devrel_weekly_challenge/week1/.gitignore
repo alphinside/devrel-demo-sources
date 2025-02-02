@@ -1,4 +1,6 @@
 settings.yaml
-cloudrun-sa.json
 .gradio
 cloud-sql-proxy
+.venv
+.ruff_cache
+__pycache__
