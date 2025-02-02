@@ -45,7 +45,7 @@ def get_bot_response(
     prev_history = history.copy()
     history.append({"role": "assistant", "content": ""})
 
-    for chunk in graph_manager.compiled_graph.stream(
+    for chunk in graph_manager.graph.stream(
         {"messages": prev_history},
         config={"configurable": {"thread_id": thread_id}},
         stream_mode="custom",
@@ -91,4 +91,7 @@ with gr.Blocks() as demo:
     ).then(get_bot_response, [thread_id, chatbot], chatbot)
     refresh.click(fetch_history, [thread_id], chatbot, queue=False)
 
-demo.launch()
+demo.launch(
+    server_name="0.0.0.0",
+    server_port=7860,
+)

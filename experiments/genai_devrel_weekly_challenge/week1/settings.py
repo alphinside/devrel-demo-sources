@@ -16,14 +16,15 @@ class Settings(BaseSettings):
     loaded from settings.yaml file and overridable via environment variables.
 
     Attributes:
-        ollama_service_url: Base URL for the Ollama service endpoint
-        cloudrun_service_account_key: Path to the service account key file for Cloud Run authentication
-        chat_history_db_uri: Database connection URI for storing chat history
+        OLLAMA_SERVICE_URL: Base URL for the Ollama service endpoint
+        CLOUDRUN_SERVICE_ACCOUNT_KEY: Path to the service account key file for Cloud Run authentication
+        CHAT_HISTORY_DB_URI: Database connection URI for storing chat history
     """
 
-    ollama_service_url: str
-    cloudrun_service_account_key: str
-    chat_history_db_uri: str
+    OLLAMA_SERVICE_URL: str
+    CLOUDRUN_SERVICE_ACCOUNT_KEY: str
+    CHAT_HISTORY_DB_URI: str
+    DB_CONNECTION_NAME: str
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"
