@@ -1,0 +1,4 @@
+OLLAMA_SERVICE_URL: "your_ollama_service_url.run.app"
+CLOUDRUN_SERVICE_ACCOUNT_KEY: "cloudrun-sa.json"
+CHAT_HISTORY_DB_URI: "postgresql://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable"
+DB_CONNECTION_NAME: "project:region:db_instance_name"
