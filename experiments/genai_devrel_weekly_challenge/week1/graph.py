@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Any
 
 from typing_extensions import TypedDict
 
@@ -10,6 +10,8 @@ from google.oauth2 import service_account
 from google.auth.transport.requests import AuthorizedSession
 from langchain_core.messages import AIMessage, BaseMessage, convert_to_openai_messages
 import json
+from psycopg import Connection
+from langgraph.checkpoint.postgres import PostgresSaver
 
 
 settings = get_settings()
@@ -47,9 +49,9 @@ def get_gemma2_response(
             "messages": [AIMessage(content="Complete response from Gemma")]
         }
     """
-    url = f"{settings.ollama_service_url}/api/chat"
+    url = f"{settings.OLLAMA_SERVICE_URL}/api/chat"
     creds = service_account.IDTokenCredentials.from_service_account_file(
-        settings.cloudrun_service_account_key, target_audience=url
+        settings.CLOUDRUN_SERVICE_ACCOUNT_KEY, target_audience=url
     )
     authed_session = AuthorizedSession(creds)
 
@@ -77,10 +79,44 @@ gemma2_graph.add_edge(START, "gemma2")
 gemma2_graph.add_edge("gemma2", END)
 
 
-def get_gemma2_graph() -> StateGraph:
-    """Return the initialized chatbot graph.
+class GraphManager:
+    """Manages the chatbot's connection to PostgreSQL and graph compilation.
 
-    Returns:
-        A configured StateGraph instance that handles the chat flow using Gemma 2.
+    This class handles the database connection setup and cleanup, as well as
+    maintaining the compiled graph instance for the chatbot.
+
+    Attributes:
+        conn: PostgreSQL database connection
+        checkpointer: PostgreSQL saver for persisting chat history
+        compiled_graph: Compiled instance of the chatbot graph
     """
-    return gemma2_graph
+
+    def __init__(self) -> None:
+        """Initialize the ChatbotManager with empty connection and graph."""
+        self.conn: Connection | None = None
+        self.checkpointer: PostgresSaver | None = None
+        self.compiled_graph: Any = None  # Type Any due to langgraph's dynamic typing
+        self.setup_connection()
+
+    def setup_connection(self) -> None:
+        """Set up the PostgreSQL connection and initialize the graph.
+
+        Establishes a connection to PostgreSQL using settings from the configuration,
+        initializes the checkpointer, and compiles the chatbot graph.
+        """
+        connection_kwargs: dict[str, Any] = {
+            "autocommit": True,
+            "prepare_threshold": 0,
+        }
+        if self.conn is None:
+            self.conn = Connection.connect(
+                settings.CHAT_HISTORY_DB_URI, **connection_kwargs
+            )
+            self.checkpointer = PostgresSaver(self.conn)
+            self.checkpointer.setup()
+            self.graph = gemma2_graph.compile(checkpointer=self.checkpointer)
+
+    def __del__(self) -> None:
+        """Clean up database connection on object destruction."""
+        if self.conn:
+            self.conn.close()
