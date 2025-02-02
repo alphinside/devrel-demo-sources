@@ -48,7 +48,7 @@ Change back working directory to example root directory `devrel-demos/ai-ml/gemm
 - Run cloud run deploy, if Dockerfile present in the working directory it will build using it
 
     ```console
-    gcloud beta run deploy gradio-app --source . --allow-unauthenticated --port 7860
+    gcloud beta run deploy gradio-app --source . --allow-unauthenticated --port 7860 --env-vars-file settings.yaml
     ```
 
     Notes that we set `--allow-unauthenticated` so that we can access the web page without any authentication.
