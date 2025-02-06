@@ -31,6 +31,7 @@ Change working directory to `./ollama-cloudrun-deploy` and see this [README.md](
 - Set permission for created ollama cloud run service account (the one created in the `Deploy Ollama Backend` step), add the following permissions:
 
   - `Cloud SQL Admin`
+  - `Cloud Run Invoker`
 
 ### 2. Deploy Gradio App
 
