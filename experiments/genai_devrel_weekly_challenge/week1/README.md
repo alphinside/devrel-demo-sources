@@ -17,8 +17,6 @@ Change working directory to `./ollama-cloudrun-deploy` and see this [README.md](
 
 ### 2. Create Database Instance
 
-
-
 - Enable the following API:
 
   - Cloud SQL Admin API

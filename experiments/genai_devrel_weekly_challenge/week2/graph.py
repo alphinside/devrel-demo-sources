@@ -99,7 +99,8 @@ def get_gemma2_response(
                 writer(response["message"]["content"])
                 full_response.append(response["message"]["content"])
     except Exception as e:
-        writer(f"failed to generate response: {e}")
+        writer(f"failed to generate gemma2 response: {e}")
+        logger.error(f"failed to genereate gemma2 response: {e}")
         return {"messages": []}
 
     return {"messages": [AIMessage(content="".join(full_response))]}
@@ -162,6 +163,7 @@ def get_gemini_response(
             full_response.append(chunk.text)
     except Exception as e:
         writer(f"failed to generate response: {e}")
+        logger.error(f"failed to genereate gemini response: {e}")
         return {"messages": []}
 
     return {"messages": [AIMessage(content="".join(full_response))]}
