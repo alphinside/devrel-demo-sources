@@ -15,6 +15,7 @@ from psycopg import Connection
 from langgraph.checkpoint.postgres import PostgresSaver
 from google import genai
 from google.genai.types import Content, Part
+from logger import logger
 
 settings = get_settings()
 
@@ -36,10 +37,10 @@ def get_model_response(
 ) -> dict[str, list[AIMessage]]:
     model_choice = config["configurable"]["model"]
 
-    if model_choice == "gemma2":
+    if model_choice.startswith("gemma2"):
         return get_gemma2_response(state, writer)
-    elif model_choice == "gemini":
-        return get_gemini_response(state, writer)
+    elif model_choice.startswith("gemini"):
+        return get_gemini_response(state, writer, model=model_choice)
     else:
         raise ValueError(
             f"Unknown model: {model_choice}, only gemma2 and gemini are supported"
@@ -79,24 +80,29 @@ def get_gemma2_response(
     # Because we are not using Langchain ChatModel object, we have to manually
     # stream the response from the Ollama service and using Langgraph "custom"
     # stream mode later on when invoking `graph.stream`
-    with authed_session.post(url, json=data, stream=True) as response:
-        for line in response.iter_lines():
-            response = json.loads(line.decode("utf-8"))
+    try:
+        with authed_session.post(url, json=data, stream=True) as response:
+            for line in response.iter_lines():
+                response = json.loads(line.decode("utf-8"))
 
-            writer(response["message"]["content"])
-            full_response.append(response["message"]["content"])
+                writer(response["message"]["content"])
+                full_response.append(response["message"]["content"])
+    except Exception as e:
+        writer(f"failed to generate response: {e}")
+        return {"messages": []}
 
     return {"messages": [AIMessage(content="".join(full_response))]}
 
 
 def get_gemini_response(
-    state: State, writer: StreamWriter
+    state: State, writer: StreamWriter, model: str
 ) -> dict[str, list[AIMessage]]:
-    """Generate a streaming response from Gemini 2.0 Flash
+    """Generate a streaming response from Gemini
 
     Args:
         state: The current state containing chat message history
         writer: A StreamWriter object to handle streaming responses
+        model: The name of the model to use
 
     Returns:
         dict containing the new AI message to be added to the chat history
@@ -106,22 +112,7 @@ def get_gemini_response(
             "messages": [AIMessage(content="Complete response from Gemini")]
         }
     """
-    # url = f"{settings.OLLAMA_SERVICE_URL}/api/chat"
-    # creds = service_account.IDTokenCredentials.from_service_account_file(
-    #     settings.CLOUDRUN_SERVICE_ACCOUNT_KEY, target_audience=url
-    # )
-    # authed_session = AuthorizedSession(creds)
 
-    # converted_messages = convert_to_openai_messages(state["messages"])
-    # data = {"model": "gemini-2.0-flash:9b", "messages": converted_messages}
-    # full_response: list[str] = []
-
-    # with authed_session.post(url, json=data, stream=True) as response:
-    #     for line in response.iter_lines():
-    #         response = json.loads(line.decode("utf-8"))
-
-    #         writer(response["message"]["content"])
-    #         full_response.append(response["message"]["content"])
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     converted_messages = []
@@ -136,15 +127,27 @@ def get_gemini_response(
             )
 
     chat_model = client.chats.create(
-        model="gemini-2.0-flash",
+        model=model,
         history=converted_messages,
     )
 
-    response = chat_model.send_message_stream(state["messages"][-1].content)
-    full_response: list[str] = []
-    for chunk in response:
-        writer(chunk.text)
-        full_response.append(chunk.text)
+    try:
+        response = chat_model.send_message_stream(state["messages"][-1].content)
+
+        full_response: list[str] = []
+        for chunk in response:
+            json_fields = {
+                "response": chunk.dict(),
+            }
+            logger.debug(
+                "gemini response is generated", extra={"json_fields": json_fields}
+            )
+
+            writer(chunk.text)
+            full_response.append(chunk.text)
+    except Exception as e:
+        writer(f"failed to generate response: {e}")
+        return {"messages": []}
 
     return {"messages": [AIMessage(content="".join(full_response))]}
 

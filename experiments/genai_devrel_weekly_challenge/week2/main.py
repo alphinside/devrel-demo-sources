@@ -4,7 +4,7 @@ from typing import Generator
 
 import gradio as gr
 from settings import get_settings
-from langchain_core.messages import convert_to_openai_messages
+from langchain_core.messages import convert_to_openai_messages, RemoveMessage
 from graph import GraphManager
 
 settings = get_settings()
@@ -28,26 +28,24 @@ def show_user_recent_history(
 
 
 def get_bot_response(
-    thread_id: str, history: list[dict[str, str]]
+    thread_id: str, model: str, history: list[dict[str, str]]
 ) -> Generator[list[dict[str, str]], None, None]:
     """Generate streaming bot responses and update chat history.
 
     Args:
         thread_id: Identifier for the chat thread
         history: Current chat history
+        model: Model to use for generating responses
 
     Yields:
         Updated chat history with each response chunk
     """
-    if thread_id == "":
-        thread_id = "default"
-
     prev_history = history.copy()
     history.append({"role": "assistant", "content": ""})
 
     for chunk in graph_manager.graph.stream(
         {"messages": prev_history},
-        config={"configurable": {"thread_id": thread_id, "model": "gemini"}},
+        config={"configurable": {"thread_id": thread_id, "model": model}},
         stream_mode="custom",
     ):
         history[-1]["content"] += chunk
@@ -63,9 +61,6 @@ def fetch_history(thread_id: str) -> list[dict[str, str]]:
     Returns:
         List of chat messages in {"role": "user|assistant", "content": str} format
     """
-    if thread_id == "":
-        thread_id = "default"
-
     graph_state = graph_manager.graph.get_state(
         {"configurable": {"thread_id": thread_id}}
     )
@@ -75,21 +70,53 @@ def fetch_history(thread_id: str) -> list[dict[str, str]]:
     return convert_to_openai_messages(graph_state[0]["messages"])
 
 
+def clear_history(thread_id: str) -> list[dict[str, str]]:
+    """Clear chat history for a given thread from the database.
+
+    Args:
+        thread_id: Identifier for the chat thread
+
+    Returns:
+        List of chat messages in {"role": "user|assistant", "content": str} format
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+
+    for message in graph_manager.graph.get_state(config).values["messages"]:
+        graph_manager.graph.update_state(
+            config, {"messages": RemoveMessage(id=message.id)}
+        )
+
+    return []
+
+
 # Initialize Gradio interface
 with gr.Blocks() as demo:
     gr.Markdown("# Your Chatbot")
 
     with gr.Row():
-        thread_id = gr.Textbox(label="Thread ID", placeholder="Enter thread ID")
-        refresh = gr.Button("🔄 Refresh Thread History")
+        thread_id = gr.Textbox(label="Thread ID", value="default", interactive=True)
+
+        with gr.Column():
+            refresh = gr.Button("🔄 Refresh Thread History")
+            clear = gr.Button("🗑️ CLEAR Thread History")
+
+        model = gr.Dropdown(
+            choices=["gemma2", "gemini-2.0-flash"],
+            label="Model",
+            value="gemini-2.0-flash",
+            interactive=True,
+        )
 
     chatbot = gr.Chatbot(type="messages")
     msg = gr.Textbox(label="Input Message", placeholder="Enter message", scale=1)
 
     msg.submit(
         show_user_recent_history, [msg, thread_id, chatbot], [msg, chatbot], queue=False
-    ).then(get_bot_response, [thread_id, chatbot], chatbot)
+    ).then(get_bot_response, [thread_id, model, chatbot], chatbot)
     refresh.click(fetch_history, [thread_id], chatbot, queue=False)
+    clear.click(clear_history, [thread_id], chatbot, queue=False)
+
+    demo.load(fetch_history, [thread_id], chatbot, queue=False)
 
 demo.launch(
     server_name="0.0.0.0",
