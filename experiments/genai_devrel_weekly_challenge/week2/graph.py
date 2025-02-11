@@ -14,8 +14,10 @@ import json
 from psycopg import Connection
 from langgraph.checkpoint.postgres import PostgresSaver
 from google import genai
-from google.genai.types import Content, Part
+from google.genai.types import Content, Part, GenerateContentConfig
 from logger import logger
+import psycopg
+from functools import lru_cache
 
 settings = get_settings()
 
@@ -36,11 +38,14 @@ def get_model_response(
     state: State, config: RunnableConfig, writer: StreamWriter
 ) -> dict[str, list[AIMessage]]:
     model_choice = config["configurable"]["model"]
+    prompt_version = config["configurable"]["prompt_version"]
 
     if model_choice.startswith("gemma2"):
-        return get_gemma2_response(state, writer)
+        return get_gemma2_response(state, writer, prompt_version=prompt_version)
     elif model_choice.startswith("gemini"):
-        return get_gemini_response(state, writer, model=model_choice)
+        return get_gemini_response(
+            state, writer, model=model_choice, prompt_version=prompt_version
+        )
     else:
         raise ValueError(
             f"Unknown model: {model_choice}, only gemma2 and gemini are supported"
@@ -48,7 +53,7 @@ def get_model_response(
 
 
 def get_gemma2_response(
-    state: State, writer: StreamWriter
+    state: State, writer: StreamWriter, prompt_version: str
 ) -> dict[str, list[AIMessage]]:
     """Generate a streaming response from Gemma 2 model via Ollama service.
 
@@ -58,6 +63,7 @@ def get_gemma2_response(
     Args:
         state: The current state containing chat message history
         writer: A StreamWriter object to handle streaming responses
+        prompt_version: The version of the prompt to use
 
     Returns:
         dict containing the new AI message to be added to the chat history
@@ -74,6 +80,11 @@ def get_gemma2_response(
     authed_session = AuthorizedSession(creds)
 
     converted_messages = convert_to_openai_messages(state["messages"])
+
+    system_message = [
+        {"role": "system", "content": get_prompt_version_content(prompt_version)}
+    ]
+    converted_messages = system_message + converted_messages
     data = {"model": "gemma2:9b", "messages": converted_messages}
     full_response: list[str] = []
 
@@ -95,7 +106,7 @@ def get_gemma2_response(
 
 
 def get_gemini_response(
-    state: State, writer: StreamWriter, model: str
+    state: State, writer: StreamWriter, model: str, prompt_version: str
 ) -> dict[str, list[AIMessage]]:
     """Generate a streaming response from Gemini
 
@@ -103,6 +114,7 @@ def get_gemini_response(
         state: The current state containing chat message history
         writer: A StreamWriter object to handle streaming responses
         model: The name of the model to use
+        prompt_version: The version of the prompt to use
 
     Returns:
         dict containing the new AI message to be added to the chat history
@@ -126,9 +138,12 @@ def get_gemini_response(
                 Content(role="user", parts=[Part.from_text(text=message.content)])
             )
 
+    system_prompt = get_prompt_version_content(prompt_version)
+
     chat_model = client.chats.create(
         model=model,
         history=converted_messages,
+        config=GenerateContentConfig(system_instruction=system_prompt),
     )
 
     try:
@@ -150,6 +165,33 @@ def get_gemini_response(
         return {"messages": []}
 
     return {"messages": [AIMessage(content="".join(full_response))]}
+
+
+@lru_cache(maxsize=32)  # Cache up to 32 different prompt versions
+def get_prompt_version_content(version: str) -> str:
+    """Get the prompt content for a specific version from the database.
+
+    Args:
+        version: The version of the prompt to retrieve
+
+    Returns:
+        The prompt content as a string
+
+    Note:
+        This function is cached using LRU cache with a maximum size of 32 entries.
+        To force a refresh of the cache, use get_prompt_content.cache_clear()
+    """
+    with psycopg.connect(settings.CHAT_HISTORY_DB_URI) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute(
+                "SELECT prompt FROM prompt_versions WHERE version = %s", (version,)
+            )
+            result = cursor.fetchone()
+            if result:
+                return result[0]
+
+            logger.warning(f"Prompt version {version} not found, using default prompt")
+            return "You are a helpful AI assistant. Please help me with my questions."
 
 
 # Initialize the chat graph

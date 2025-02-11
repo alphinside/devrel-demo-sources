@@ -1,7 +1,7 @@
 """Gradio web interface for the Gemma 2 chatbot with persistent chat history."""
 
 from typing import Generator
-
+import psycopg
 import gradio as gr
 from settings import get_settings
 from langchain_core.messages import convert_to_openai_messages, RemoveMessage
@@ -28,14 +28,15 @@ def show_user_recent_history(
 
 
 def get_bot_response(
-    thread_id: str, model: str, history: list[dict[str, str]]
+    thread_id: str, model: str, prompt_version: str, history: list[dict[str, str]]
 ) -> Generator[list[dict[str, str]], None, None]:
     """Generate streaming bot responses and update chat history.
 
     Args:
         thread_id: Identifier for the chat thread
-        history: Current chat history
         model: Model to use for generating responses
+        prompt_version: Version of the prompt to use
+        history: Current chat history
 
     Yields:
         Updated chat history with each response chunk
@@ -45,7 +46,13 @@ def get_bot_response(
 
     for chunk in graph_manager.graph.stream(
         {"messages": prev_history},
-        config={"configurable": {"thread_id": thread_id, "model": model}},
+        config={
+            "configurable": {
+                "thread_id": thread_id,
+                "model": model,
+                "prompt_version": prompt_version,
+            }
+        },
         stream_mode="custom",
     ):
         history[-1]["content"] += chunk
@@ -89,6 +96,18 @@ def clear_history(thread_id: str) -> list[dict[str, str]]:
     return []
 
 
+def get_prompt_versions() -> list[str]:
+    """Fetch all prompt versions from the database.
+
+    Returns:
+        List of version strings ordered by version number
+    """
+    with psycopg.connect(settings.CHAT_HISTORY_DB_URI) as conn:
+        with conn.cursor() as cursor:
+            cursor.execute("SELECT version FROM prompt_versions ORDER BY version")
+            return [row[0] for row in cursor.fetchall()]
+
+
 # Initialize Gradio interface
 with gr.Blocks() as demo:
     gr.Markdown("# Your Chatbot")
@@ -107,12 +126,19 @@ with gr.Blocks() as demo:
             interactive=True,
         )
 
+        prompt_version = gr.Dropdown(
+            choices=get_prompt_versions(),
+            label="Prompt Version",
+            value=get_prompt_versions()[-1] if get_prompt_versions() else None,
+            interactive=True,
+        )
+
     chatbot = gr.Chatbot(type="messages")
     msg = gr.Textbox(label="Input Message", placeholder="Enter message", scale=1)
 
     msg.submit(
         show_user_recent_history, [msg, thread_id, chatbot], [msg, chatbot], queue=False
-    ).then(get_bot_response, [thread_id, model, chatbot], chatbot)
+    ).then(get_bot_response, [thread_id, model, prompt_version, chatbot], chatbot)
     refresh.click(fetch_history, [thread_id], chatbot, queue=False)
     clear.click(clear_history, [thread_id], chatbot, queue=False)
 
