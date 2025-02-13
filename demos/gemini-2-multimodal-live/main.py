@@ -41,7 +41,7 @@ class AudioOutput(str, Enum):
     GRADIO = "gradio"
 
 
-class AudioLoop:
+class MultimodalLoop:
     def __init__(self, audio_output: AudioOutput):
         self.audio_output = audio_output
         self.audio_in_queue = None
@@ -217,26 +217,42 @@ def main(
     Run the Gemini live API demo with Gradio interface.
     """
     with gr.Blocks() as demo:
-        audio_loop = AudioLoop(audio_output=audio_output)
+        gr.Markdown("# Gemini Live API Demo")
+
+        multimodal_loop = MultimodalLoop(audio_output=audio_output)
+
+        session_button = gr.Button("Start Session")
 
         # Add Gradio Audio components
         with gr.Row():
-            session_button = gr.Button("Start Session")
             audio_input = gr.Audio(
                 sources=["microphone"], streaming=True, type="numpy", label="Input"
             )
             if audio_output == AudioOutput.GRADIO:
                 audio_output = gr.Audio(label="Gemini", streaming=True, autoplay=True)
 
-        async def start_session(audio_loop=audio_loop):
-            if audio_loop.session is None:
-                audio_loop._task = asyncio.create_task(audio_loop.run())
+        # Add text input components
+
+        text_input = gr.Textbox(
+            label="Text Message", placeholder="Type your message here...", lines=2
+        )
+        text_submit = gr.Button("Send Message")
+
+        async def start_session(multimodal_loop=multimodal_loop):
+            if multimodal_loop.session is None:
+                multimodal_loop._task = asyncio.create_task(multimodal_loop.run())
                 return "Stop Session"
             else:
-                if audio_loop._task:
-                    audio_loop._task.cancel()
-                audio_loop.session = None
+                if multimodal_loop._task:
+                    multimodal_loop._task.cancel()
+                multimodal_loop.session = None
                 return "Start Session"
+
+        async def submit_text(text, multimodal_loop=multimodal_loop):
+            if multimodal_loop.session and text.strip():
+                await multimodal_loop.session.send(input=text, end_of_turn=True)
+                return ""  # Clear the textbox after sending
+            return text  # Keep the text if session is not active
 
         session_button.click(
             start_session,
@@ -245,14 +261,21 @@ def main(
 
         # Connect audio input to processing function
         audio_input.stream(
-            fn=audio_loop.process_mic_input,
+            fn=multimodal_loop.process_mic_input,
             inputs=[audio_input],
+        )
+
+        # Connect text input to submit functio
+        text_submit.click(
+            fn=submit_text,
+            inputs=[text_input],
+            outputs=[text_input],
         )
 
         # Connect audio output to play_audio function
         if audio_output == AudioOutput.GRADIO:
             demo.load(
-                audio_loop.play_audio_with_gradio,
+                multimodal_loop.play_audio_with_gradio,
                 outputs=audio_output,
             )
 
