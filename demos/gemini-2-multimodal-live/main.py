@@ -23,7 +23,7 @@ GEMINI_AUDIO_INPUT_CHUNK_SIZE = 1024
 GEMINI_AUDIO_OUTPUT_SAMPLE_RATE = 24000
 GEMINI_AUDIO_OUTPUT_CHUNK_SIZE = 4800
 GRADIO_OUTPUT_CHUNKS_TO_COLLECT = 10
-# send to gradio component every 10 chunks, equal to 2 seconds of audio -> 4800 * 10 = 48000 = 2 * SAMPLE RATE
+# send to gradio component every 10 chunks, equal to +-2 seconds of audio -> 4800 * 10 = 48000 = 2 * SAMPLE RATE
 
 
 class AudioLoop:
@@ -109,7 +109,7 @@ class AudioLoop:
             async for response in turn:
                 print(response)
                 if data := response.data:
-                    self.audio_in_queue.put_nowait(data)
+                    self.audio_in_queue.put_nowait(np.frombuffer(data, dtype=np.int16))
                     continue
                 if text := response.text:
                     print(text, end="")
@@ -131,7 +131,7 @@ class AudioLoop:
                 # Wait for at least one chunk
                 first_chunk = await self.audio_in_queue.get()
                 await asyncio.sleep(0.15)  # buffer to make output smoother
-                chunks = [np.frombuffer(first_chunk, dtype=np.int16)]
+                chunks = [first_chunk]
 
                 # Try to get more chunks without blocking
                 for _ in range(GRADIO_OUTPUT_CHUNKS_TO_COLLECT - 1):
@@ -139,22 +139,17 @@ class AudioLoop:
 
                     try:
                         chunk = self.audio_in_queue.get_nowait()
-                        chunks.append(np.frombuffer(chunk, dtype=np.int16))
+                        chunks.append(chunk)
                     except asyncio.QueueEmpty:
                         break
 
                 # Concatenate available chunks
                 combined_audio = np.concatenate(chunks)
 
-                # Only pad if we have some data but less than expected
-                if 0 < len(chunks) < GRADIO_OUTPUT_CHUNKS_TO_COLLECT:
-                    padding_size = (
-                        GRADIO_OUTPUT_CHUNKS_TO_COLLECT - len(chunks)
-                    ) * GEMINI_AUDIO_OUTPUT_CHUNK_SIZE
-                    padding = np.zeros(padding_size, dtype=np.int16)
-                    combined_audio = np.concatenate([combined_audio, padding])
-
                 yield (GEMINI_AUDIO_OUTPUT_SAMPLE_RATE, combined_audio)
+                await asyncio.sleep(
+                    1
+                )  # Halt for half of the output before continue buffering
 
             except Exception as e:
                 print(f"Error in play_audio: {e}")
