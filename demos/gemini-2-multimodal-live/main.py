@@ -8,7 +8,11 @@ MODEL = "models/gemini-2.0-flash-exp"
 client = genai.Client(http_options={"api_version": "v1alpha"})
 CONFIG = {
     "generation_config": {"response_modalities": ["AUDIO"]},
-    "systemInstruction": "always respond in English",
+    "system_instruction": (
+        "Your name is Alex, always introduce yourself first before the conversation begins."
+        "You are an expert in engineering design and can suggest best practices "
+        "for a new engineer to get started."
+    ),
 }
 AUDIO_FORMAT = pyaudio.paInt16
 CHANNELS = 1
@@ -159,20 +163,5 @@ with gr.Blocks() as demo:
         toggle_mic_input,
         outputs=interrupt_mic,
     )
-
-    # async def start_mic_input(audio_loop=audio_loop):
-    #     if audio_loop.audio_stream is None:
-    #         audio_loop._task = asyncio.create_task(audio_loop.run_audio_input_stream())
-    #         return "Stop Mic"
-    #     else:
-    #         if audio_loop._task:
-    #             audio_loop._task.cancel()
-    #         audio_loop.audio_stream = None
-    #         return "Start Mic"
-
-    # mic_button.click(
-    #     start_mic_input,
-    #     outputs=mic_button,
-    # )
 
 demo.launch()
