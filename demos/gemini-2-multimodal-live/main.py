@@ -7,6 +7,7 @@ from scipy import signal
 import typer
 import pyaudio
 from enum import Enum
+import cv2
 
 
 app = typer.Typer()
@@ -20,6 +21,7 @@ CONFIG = {
         "You are an expert in product management and can suggest best practices "
         "how to design and launch a successful product. Always explain your answer in a "
         "little bit more comprehensive so that the conversation becomes more natural."
+        "DO NOT LIE and MAKE UP ANSWERS"
     ),
 }
 CHANNELS = 1
@@ -48,6 +50,7 @@ class MultimodalLoop:
         self.out_queue = None
         self.session = None
         self._task = None
+        self.webcam_active = False
 
     def resample_audio(self, audio_data, from_rate, to_rate):
         """Resample audio data from one rate to another"""
@@ -64,20 +67,11 @@ class MultimodalLoop:
         resampled = signal.resample(audio_data, new_length)
         return resampled.astype(np.int16)
 
-    async def send_text(self):
-        while True:
-            text = await asyncio.to_thread(
-                input,
-                "message > ",
-            )
-            if text.lower() == "q":
-                break
-            await self.session.send(input=text or ".", end_of_turn=True)
-
     async def send_realtime(self):
         while True:
             try:
                 msg = self.out_queue.get_nowait()
+
                 await self.session.send(input=msg)
             except Exception:
                 await asyncio.sleep(0.01)
@@ -117,6 +111,20 @@ class MultimodalLoop:
                 await self.out_queue.put(
                     {"data": chunk_bytes, "mime_type": "audio/pcm"}
                 )
+
+    async def process_webcam_frame(self, frame):
+        """Process webcam frame from Gradio"""
+        if frame is not None and self.session is not None:
+            # Convert BGR to RGB format
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Convert frame to bytes
+            _, img_encoded = cv2.imencode(".jpg", frame_rgb)
+            img_bytes = img_encoded.tobytes()
+
+            await asyncio.sleep(1.0)
+
+            # Send the frame to Gemini
+            await self.out_queue.put({"data": img_bytes, "mime_type": "image/jpeg"})
 
     async def receive_audio(self):
         "Background task to reads from the websocket and write pcm chunks to the output queue"
@@ -223,13 +231,14 @@ def main(
 
         session_button = gr.Button("Start Session")
 
-        # Add Gradio Audio components
+        # Add Gradio Audio components and Webcam components
         with gr.Row():
             audio_input = gr.Audio(
                 sources=["microphone"], streaming=True, type="numpy", label="Input"
             )
             if audio_output == AudioOutput.GRADIO:
                 audio_output = gr.Audio(label="Gemini", streaming=True, autoplay=True)
+            webcam = gr.Image(sources=["webcam"], streaming=True, label="Webcam")
 
         # Add text input components
 
@@ -263,6 +272,12 @@ def main(
         audio_input.stream(
             fn=multimodal_loop.process_mic_input,
             inputs=[audio_input],
+        )
+
+        # Connect webcam input to processing function
+        webcam.stream(
+            fn=multimodal_loop.process_webcam_frame,
+            inputs=[webcam],
         )
 
         # Connect text input to submit functio
