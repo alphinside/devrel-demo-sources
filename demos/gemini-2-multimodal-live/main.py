@@ -118,6 +118,7 @@ class AudioLoop:
             while not self.audio_in_queue.empty():
                 self.audio_in_queue.get_nowait()
 
+    # TODO: update output to use gradio Audio instead of pyaudio
     async def play_audio(self):
         stream = await asyncio.to_thread(
             pya.open,
@@ -164,12 +165,6 @@ with gr.Blocks() as demo:
         audio_input = gr.Audio(
             sources=["microphone"], streaming=True, type="numpy", label="Input"
         )
-        # audio_output = gr.Audio(
-        #     type="numpy",
-        #     label="Output",
-        #     streaming=True,
-        #     autoplay=True,
-        # )
 
     async def start_session(audio_loop=audio_loop):
         if audio_loop.session is None:
@@ -201,10 +196,5 @@ with gr.Blocks() as demo:
         fn=audio_loop.process_mic_input,
         inputs=[audio_input],
     )
-
-    # demo.load(
-    #     fn=audio_loop.play_audio,
-    #     outputs=[audio_output],
-    # )
 
 demo.launch()
