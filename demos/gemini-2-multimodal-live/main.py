@@ -24,7 +24,6 @@ SEND_SAMPLE_RATE = 16000
 RECEIVE_SAMPLE_RATE = 24000
 CHUNK_SIZE = 1024
 pya = pyaudio.PyAudio()
-OPEN_MIC = True
 
 
 class AudioLoop:
@@ -69,8 +68,8 @@ class AudioLoop:
 
     async def process_mic_input(self, audio_data):
         """Process microphone input from Gradio"""
-        print(OPEN_MIC)
-        if OPEN_MIC and audio_data is not None and self.out_queue is not None:
+
+        if audio_data is not None and self.out_queue is not None:
             # Gradio returns a tuple of (sample_rate, audio_data)
             sample_rate, audio_array = audio_data
 
@@ -156,12 +155,9 @@ class AudioLoop:
 with gr.Blocks() as demo:
     audio_loop = AudioLoop()
 
-    with gr.Row():
-        interrupt_mic = gr.Button("Stop Mic")
-        session_button = gr.Button("Start Session")
-
     # Add Gradio Audio components
     with gr.Row():
+        session_button = gr.Button("Start Session")
         audio_input = gr.Audio(
             sources=["microphone"], streaming=True, type="numpy", label="Input"
         )
@@ -179,16 +175,6 @@ with gr.Blocks() as demo:
     session_button.click(
         start_session,
         outputs=session_button,
-    )
-
-    async def toggle_mic_input():
-        global OPEN_MIC
-        OPEN_MIC = not OPEN_MIC
-        return "Stop Mic" if OPEN_MIC else "Start Mic"
-
-    interrupt_mic.click(
-        toggle_mic_input,
-        outputs=interrupt_mic,
     )
 
     # Connect audio input to processing function
