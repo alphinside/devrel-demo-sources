@@ -4,7 +4,6 @@ import asyncio
 import traceback
 import numpy as np
 from scipy import signal
-import pyaudio
 
 
 MODEL = "models/gemini-2.0-flash-exp"
@@ -18,12 +17,13 @@ CONFIG = {
         "little bit more comprehensive so that the conversation becomes more natural."
     ),
 }
-AUDIO_FORMAT = pyaudio.paInt16
 CHANNELS = 1
-SEND_SAMPLE_RATE = 16000
-RECEIVE_SAMPLE_RATE = 24000
-CHUNK_SIZE = 1024
-pya = pyaudio.PyAudio()
+GEMINI_AUDIO_INPUT_SAMPLE_RATE = 16000
+GEMINI_AUDIO_INPUT_CHUNK_SIZE = 1024
+GEMINI_AUDIO_OUTPUT_SAMPLE_RATE = 24000
+GEMINI_AUDIO_OUTPUT_CHUNK_SIZE = 4800
+GRADIO_OUTPUT_CHUNKS_TO_COLLECT = 10
+# send to gradio component every 10 chunks, equal to 2 seconds of audio -> 4800 * 10 = 48000 = 2 * SAMPLE RATE
 
 
 class AudioLoop:
@@ -79,17 +79,21 @@ class AudioLoop:
 
             # Resample from input rate to 16kHz
             resampled_data = self.resample_audio(
-                audio_array, sample_rate, SEND_SAMPLE_RATE
+                audio_array, sample_rate, GEMINI_AUDIO_INPUT_SAMPLE_RATE
             )
 
             # Process audio in chunks
             num_samples = len(resampled_data)
-            for i in range(0, num_samples, CHUNK_SIZE):
-                chunk = resampled_data[i : i + CHUNK_SIZE]
+            for i in range(0, num_samples, GEMINI_AUDIO_INPUT_CHUNK_SIZE):
+                chunk = resampled_data[i : i + GEMINI_AUDIO_INPUT_CHUNK_SIZE]
 
                 # If the last chunk is smaller than CHUNK_SIZE, pad with zeros
-                if len(chunk) < CHUNK_SIZE:
-                    chunk = np.pad(chunk, (0, CHUNK_SIZE - len(chunk)), "constant")
+                if len(chunk) < GEMINI_AUDIO_INPUT_CHUNK_SIZE:
+                    chunk = np.pad(
+                        chunk,
+                        (0, GEMINI_AUDIO_INPUT_CHUNK_SIZE - len(chunk)),
+                        "constant",
+                    )
 
                 # Convert chunk to bytes
                 chunk_bytes = chunk.tobytes()
@@ -117,19 +121,44 @@ class AudioLoop:
             while not self.audio_in_queue.empty():
                 self.audio_in_queue.get_nowait()
 
-    # TODO: update output to use gradio Audio instead of pyaudio
     async def play_audio(self):
-        stream = await asyncio.to_thread(
-            pya.open,
-            format=AUDIO_FORMAT,
-            channels=CHANNELS,
-            rate=RECEIVE_SAMPLE_RATE,
-            frames_per_buffer=CHUNK_SIZE,
-            output=True,
-        )
         while True:
-            bytestream = await self.audio_in_queue.get()
-            await asyncio.to_thread(stream.write, bytestream)
+            if self.audio_in_queue is None:
+                await asyncio.sleep(0.1)
+                continue
+
+            try:
+                # Wait for at least one chunk
+                first_chunk = await self.audio_in_queue.get()
+                await asyncio.sleep(0.15)  # buffer to make output smoother
+                chunks = [np.frombuffer(first_chunk, dtype=np.int16)]
+
+                # Try to get more chunks without blocking
+                for _ in range(GRADIO_OUTPUT_CHUNKS_TO_COLLECT - 1):
+                    await asyncio.sleep(0.15)  # buffer to make output smoother
+
+                    try:
+                        chunk = self.audio_in_queue.get_nowait()
+                        chunks.append(np.frombuffer(chunk, dtype=np.int16))
+                    except asyncio.QueueEmpty:
+                        break
+
+                # Concatenate available chunks
+                combined_audio = np.concatenate(chunks)
+
+                # Only pad if we have some data but less than expected
+                if 0 < len(chunks) < GRADIO_OUTPUT_CHUNKS_TO_COLLECT:
+                    padding_size = (
+                        GRADIO_OUTPUT_CHUNKS_TO_COLLECT - len(chunks)
+                    ) * GEMINI_AUDIO_OUTPUT_CHUNK_SIZE
+                    padding = np.zeros(padding_size, dtype=np.int16)
+                    combined_audio = np.concatenate([combined_audio, padding])
+
+                yield (GEMINI_AUDIO_OUTPUT_SAMPLE_RATE, combined_audio)
+
+            except Exception as e:
+                print(f"Error in play_audio: {e}")
+                await asyncio.sleep(0.1)
 
     async def run(self):
         try:
@@ -143,7 +172,6 @@ class AudioLoop:
 
                 tg.create_task(self.send_realtime())
                 tg.create_task(self.receive_audio())
-                tg.create_task(self.play_audio())
 
                 while True:
                     await asyncio.sleep(0.01)
@@ -161,6 +189,7 @@ with gr.Blocks() as demo:
         audio_input = gr.Audio(
             sources=["microphone"], streaming=True, type="numpy", label="Input"
         )
+        audio_output = gr.Audio(label="Gemini", streaming=True, autoplay=True)
 
     async def start_session(audio_loop=audio_loop):
         if audio_loop.session is None:
@@ -181,6 +210,12 @@ with gr.Blocks() as demo:
     audio_input.stream(
         fn=audio_loop.process_mic_input,
         inputs=[audio_input],
+    )
+
+    # Connect audio output to play_audio function
+    demo.load(
+        audio_loop.play_audio,
+        outputs=audio_output,
     )
 
 demo.launch()
