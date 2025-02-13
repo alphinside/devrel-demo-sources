@@ -4,7 +4,12 @@ import asyncio
 import traceback
 import numpy as np
 from scipy import signal
+import typer
+import pyaudio
+from enum import Enum
 
+
+app = typer.Typer()
 
 MODEL = "models/gemini-2.0-flash-exp"
 client = genai.Client(http_options={"api_version": "v1alpha"})
@@ -24,10 +29,21 @@ GEMINI_AUDIO_OUTPUT_SAMPLE_RATE = 24000
 GEMINI_AUDIO_OUTPUT_CHUNK_SIZE = 4800
 GRADIO_OUTPUT_CHUNKS_TO_COLLECT = 10
 # send to gradio component every 10 chunks, equal to +-2 seconds of audio -> 4800 * 10 = 48000 = 2 * SAMPLE RATE
+PYA = pyaudio.PyAudio()
+PYA_FORMAT = pyaudio.paInt16
+PYA_OUTPUT_CHUNK_SIZE = 1024
+
+
+class AudioOutput(str, Enum):
+    """Enum for audio output options."""
+
+    PYAUDIO = "pyaudio"
+    GRADIO = "gradio"
 
 
 class AudioLoop:
-    def __init__(self):
+    def __init__(self, audio_output: AudioOutput):
+        self.audio_output = audio_output
         self.audio_in_queue = None
         self.out_queue = None
         self.session = None
@@ -109,7 +125,12 @@ class AudioLoop:
             async for response in turn:
                 print(response)
                 if data := response.data:
-                    self.audio_in_queue.put_nowait(np.frombuffer(data, dtype=np.int16))
+                    if self.audio_output == AudioOutput.PYAUDIO:
+                        self.audio_in_queue.put_nowait(data)
+                    elif self.audio_output == AudioOutput.GRADIO:
+                        self.audio_in_queue.put_nowait(
+                            np.frombuffer(data, dtype=np.int16)
+                        )
                     continue
                 if text := response.text:
                     print(text, end="")
@@ -121,7 +142,7 @@ class AudioLoop:
             while not self.audio_in_queue.empty():
                 self.audio_in_queue.get_nowait()
 
-    async def play_audio(self):
+    async def play_audio_with_gradio(self):
         while True:
             if self.audio_in_queue is None:
                 await asyncio.sleep(0.1)
@@ -147,13 +168,23 @@ class AudioLoop:
                 combined_audio = np.concatenate(chunks)
 
                 yield (GEMINI_AUDIO_OUTPUT_SAMPLE_RATE, combined_audio)
-                await asyncio.sleep(
-                    1
-                )  # Halt for half of the output before continue buffering
 
             except Exception as e:
                 print(f"Error in play_audio: {e}")
                 await asyncio.sleep(0.1)
+
+    async def play_audio_with_pyaudio(self):
+        stream = await asyncio.to_thread(
+            PYA.open,
+            format=PYA_FORMAT,
+            channels=CHANNELS,
+            rate=GEMINI_AUDIO_OUTPUT_SAMPLE_RATE,
+            frames_per_buffer=PYA_OUTPUT_CHUNK_SIZE,
+            output=True,
+        )
+        while True:
+            bytestream = await self.audio_in_queue.get()
+            await asyncio.to_thread(stream.write, bytestream)
 
     async def run(self):
         try:
@@ -168,6 +199,9 @@ class AudioLoop:
                 tg.create_task(self.send_realtime())
                 tg.create_task(self.receive_audio())
 
+                if self.audio_output == AudioOutput.PYAUDIO:
+                    tg.create_task(self.play_audio_with_pyaudio())
+
                 while True:
                     await asyncio.sleep(0.01)
 
@@ -175,42 +209,55 @@ class AudioLoop:
             traceback.print_exception(EG)
 
 
-with gr.Blocks() as demo:
-    audio_loop = AudioLoop()
+@app.command()
+def main(
+    audio_output: AudioOutput = AudioOutput.PYAUDIO,
+):
+    """
+    Run the Gemini live API demo with Gradio interface.
+    """
+    with gr.Blocks() as demo:
+        audio_loop = AudioLoop(audio_output=audio_output)
 
-    # Add Gradio Audio components
-    with gr.Row():
-        session_button = gr.Button("Start Session")
-        audio_input = gr.Audio(
-            sources=["microphone"], streaming=True, type="numpy", label="Input"
+        # Add Gradio Audio components
+        with gr.Row():
+            session_button = gr.Button("Start Session")
+            audio_input = gr.Audio(
+                sources=["microphone"], streaming=True, type="numpy", label="Input"
+            )
+            if audio_output == AudioOutput.GRADIO:
+                audio_output = gr.Audio(label="Gemini", streaming=True, autoplay=True)
+
+        async def start_session(audio_loop=audio_loop):
+            if audio_loop.session is None:
+                audio_loop._task = asyncio.create_task(audio_loop.run())
+                return "Stop Session"
+            else:
+                if audio_loop._task:
+                    audio_loop._task.cancel()
+                audio_loop.session = None
+                return "Start Session"
+
+        session_button.click(
+            start_session,
+            outputs=session_button,
         )
-        audio_output = gr.Audio(label="Gemini", streaming=True, autoplay=True)
 
-    async def start_session(audio_loop=audio_loop):
-        if audio_loop.session is None:
-            audio_loop._task = asyncio.create_task(audio_loop.run())
-            return "Stop Session"
-        else:
-            if audio_loop._task:
-                audio_loop._task.cancel()
-            audio_loop.session = None
-            return "Start Session"
+        # Connect audio input to processing function
+        audio_input.stream(
+            fn=audio_loop.process_mic_input,
+            inputs=[audio_input],
+        )
 
-    session_button.click(
-        start_session,
-        outputs=session_button,
-    )
+        # Connect audio output to play_audio function
+        if audio_output == AudioOutput.GRADIO:
+            demo.load(
+                audio_loop.play_audio_with_gradio,
+                outputs=audio_output,
+            )
 
-    # Connect audio input to processing function
-    audio_input.stream(
-        fn=audio_loop.process_mic_input,
-        inputs=[audio_input],
-    )
+    demo.launch()
 
-    # Connect audio output to play_audio function
-    demo.load(
-        audio_loop.play_audio,
-        outputs=audio_output,
-    )
 
-demo.launch()
+if __name__ == "__main__":
+    app()

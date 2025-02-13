@@ -253,6 +253,7 @@ dependencies = [
     { name = "itsdangerous" },
     { name = "librosa" },
     { name = "pyaudio" },
+    { name = "typer" },
 ]
 
 [package.metadata]
@@ -262,6 +263,7 @@ requires-dist = [
     { name = "itsdangerous", specifier = ">=2.2.0" },
     { name = "librosa", specifier = ">=0.10.2.post1" },
     { name = "pyaudio", specifier = ">=0.2.14" },
+    { name = "typer", specifier = ">=0.15.1" },
 ]
 
 [[package]]
