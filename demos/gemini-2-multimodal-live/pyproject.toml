@@ -1,0 +1,18 @@
+[project]
+name = "gemini-2-multimodal-live"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "google-genai>=1.1.0",
+    "gradio>=5.15.0",
+    "opencv-python>=4.11.0.86",
+    "pyaudio>=0.2.14",
+    "pydantic-settings[yaml]>=2.7.1",
+    "scipy>=1.15.2",
+    "typer>=0.15.1",
+]
+
+[tool.ruff]
+target-version = "py312"

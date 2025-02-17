@@ -35,10 +35,7 @@ class Settings(BaseSettings):
         CHAT_HISTORY_DB_URI: Database connection URI for storing chat history
     """
 
-    OLLAMA_SERVICE_URL: str
-    CLOUDRUN_SERVICE_ACCOUNT_KEY: str
-    CHAT_HISTORY_DB_URI: str
-    DB_CONNECTION_NAME: str
+    GEMINI_API_KEY: str
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"
