@@ -1,1 +1,7 @@
+settings.yaml
+.gradio
+cloud-sql-proxy
+.venv
+.ruff_cache
+__pycache__
 converted_data/*
