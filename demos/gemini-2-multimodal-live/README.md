@@ -1,5 +1,7 @@
 # Gemini 2 Multimodal Live API Development Demo
 
+Use Case : An expert books and movies reviewer
+
 In this demos, we can see how we develop and interactive chat assistant using Gemini 2 Live API Demo. Instead of using HTTP, this API is a stateful API using Websockets. The interface for this demo is developed using [Gradio](https://www.gradio.app/)
 
 ## How to Run
