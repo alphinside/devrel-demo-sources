@@ -26,20 +26,21 @@ import pyaudio
 from enum import Enum
 import cv2
 from typing import AsyncGenerator, Optional, Tuple, Dict, Any
-
+from settings import get_settings
 
 app = typer.Typer()
 
 MODEL: str = "models/gemini-2.0-flash-exp"
-client: genai.Client = genai.Client(http_options={"api_version": "v1alpha"})
+client: genai.Client = genai.Client(
+    api_key=get_settings().GEMINI_API_KEY, http_options={"api_version": "v1alpha"}
+)
 CONFIG: Dict[str, Any] = {
     "generation_config": {"response_modalities": ["AUDIO"]},
     "system_instruction": (
         "Your name is Erik, always introduce yourself first before the conversation begins."
-        "You are an expert in product management and can suggest best practices "
-        "how to design and launch a successful product. Always explain your answer in a "
-        "little bit more comprehensive so that the conversation becomes more natural."
-        "DO NOT LIE and MAKE UP ANSWERS"
+        "You are an expert in books and movies,also knowledgeable about their contents "
+        "and user reviews about them.Always explain your answer in a little bit more "
+        "comprehensive so that the conversation becomes more natural. DO NOT LIE and MAKE UP ANSWERS"
     ),
 }
 CHANNELS: int = 1
