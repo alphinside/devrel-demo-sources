@@ -1,5 +1,5 @@
 [project]
-name = "week2"
+name = "week3"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
@@ -13,4 +13,7 @@ dependencies = [
     "langgraph-checkpoint-postgres>=2.0.13",
     "psycopg-binary>=3.2.4",
     "pydantic-settings[yaml]>=2.7.1",
+    "datasets>=3.3.0",
+    "typer>=0.15.1",
+    "vertexai>=1.71.1",
 ]
