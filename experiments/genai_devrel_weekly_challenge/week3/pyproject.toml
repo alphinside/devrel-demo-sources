@@ -15,4 +15,5 @@ dependencies = [
     "pydantic-settings[yaml]>=2.7.1",
     "datasets>=3.3.0",
     "typer>=0.15.1",
+    "vertexai>=1.71.1",
 ]

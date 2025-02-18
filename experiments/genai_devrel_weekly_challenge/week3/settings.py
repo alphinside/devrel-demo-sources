@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     CLOUDRUN_SERVICE_ACCOUNT_KEY: str
     CHAT_HISTORY_DB_URI: str
     DB_CONNECTION_NAME: str
+    GEMINI_FINETUNED_URI: str
+    VERTEX_PROJECT_ID: str
+    VERTEX_LOCATION: str
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"

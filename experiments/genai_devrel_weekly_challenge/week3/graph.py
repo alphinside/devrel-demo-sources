@@ -30,10 +30,16 @@ import json
 from psycopg import Connection
 from langgraph.checkpoint.postgres import PostgresSaver
 from google import genai
-from google.genai.types import Content, Part, GenerateContentConfig
+from google.genai.types import Content as GenAIContent
+from google.genai.types import Part as GenAIPart
+from google.genai.types import GenerateContentConfig
 from logger import logger
 import psycopg
 from functools import lru_cache
+import vertexai
+from vertexai.generative_models import Content as VertexAIContent
+from vertexai.generative_models import Part as VertexAIPart
+from vertexai.generative_models import GenerativeModel
 
 settings = get_settings()
 
@@ -59,6 +65,11 @@ def get_model_response(
     if model_choice.startswith("gemma2"):
         return get_gemma2_response(state, writer, prompt_version=prompt_version)
     elif model_choice.startswith("gemini"):
+        if "finetuned" in model_choice:
+            return get_gemini_finetuned_response(
+                state, writer, prompt_version=prompt_version
+            )
+
         return get_gemini_response(
             state, writer, model=model_choice, prompt_version=prompt_version
         )
@@ -90,10 +101,10 @@ def get_gemma2_response(
         }
     """
     url = f"{settings.OLLAMA_SERVICE_URL}/api/chat"
-    creds = service_account.IDTokenCredentials.from_service_account_file(
+    token_creds = service_account.IDTokenCredentials.from_service_account_file(
         settings.CLOUDRUN_SERVICE_ACCOUNT_KEY, target_audience=url
     )
-    authed_session = AuthorizedSession(creds)
+    authed_session = AuthorizedSession(token_creds)
 
     converted_messages = convert_to_openai_messages(state["messages"])
 
@@ -122,6 +133,34 @@ def get_gemma2_response(
     return {"messages": [AIMessage(content="".join(full_response))]}
 
 
+def format_chat_to_gemini_standard(
+    messages: list, lib_type: str | None = None
+) -> list[GenAIContent | VertexAIContent]:
+    if lib_type == "vertexai":
+        content_type = VertexAIContent
+        part_type = VertexAIPart
+    else:
+        content_type = GenAIContent
+        part_type = GenAIPart
+
+    converted_messages = []
+    for message in messages:
+        if isinstance(message, AIMessage):
+            converted_messages.append(
+                content_type(
+                    role="model", parts=[part_type.from_text(text=message.content)]
+                )
+            )
+        else:
+            converted_messages.append(
+                content_type(
+                    role="user", parts=[part_type.from_text(text=message.content)]
+                )
+            )
+
+    return converted_messages
+
+
 def get_gemini_response(
     state: State, writer: StreamWriter, model: str, prompt_version: str
 ) -> dict[str, list[AIMessage]]:
@@ -144,16 +183,7 @@ def get_gemini_response(
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
-    converted_messages = []
-    for message in state["messages"][:-1]:
-        if isinstance(message, AIMessage):
-            converted_messages.append(
-                Content(role="model", parts=[Part.from_text(text=message.content)])
-            )
-        else:
-            converted_messages.append(
-                Content(role="user", parts=[Part.from_text(text=message.content)])
-            )
+    converted_messages = format_chat_to_gemini_standard(state["messages"][:-1])
 
     system_prompt = get_prompt_version_content(prompt_version)
 
@@ -180,6 +210,52 @@ def get_gemini_response(
     except Exception as e:
         writer(f"failed to generate response: {e}")
         logger.error(f"failed to genereate gemini response: {e}")
+        return {"messages": []}
+
+    return {"messages": [AIMessage(content="".join(full_response))]}
+
+
+def get_gemini_finetuned_response(
+    state: State, writer: StreamWriter, prompt_version: str
+) -> dict[str, list[AIMessage]]:
+    credentials = service_account.Credentials.from_service_account_file(
+        settings.CLOUDRUN_SERVICE_ACCOUNT_KEY,
+    )
+    system_prompt = get_prompt_version_content(prompt_version)
+    converted_messages = format_chat_to_gemini_standard(
+        state["messages"][:-1], lib_type="vertexai"
+    )
+
+    vertexai.init(
+        project=settings.VERTEX_PROJECT_ID,
+        location=settings.VERTEX_LOCATION,
+        credentials=credentials,
+    )
+
+    gemini_tuned_model = GenerativeModel(
+        settings.GEMINI_FINETUNED_URI, system_instruction=system_prompt
+    )
+    chat_model = gemini_tuned_model.start_chat(history=converted_messages)
+
+    try:
+        response = chat_model.send_message(state["messages"][-1].content, stream=True)
+
+        full_response: list[str] = []
+        for chunk in response:
+            json_fields = {
+                "response": chunk.to_dict(),
+            }
+            logger.debug(
+                "gemini finetuned response is generated",
+                extra={"json_fields": json_fields},
+            )
+
+            writer(chunk.text)
+            full_response.append(chunk.text)
+
+    except Exception as e:
+        writer(f"failed to generate response: {e}")
+        logger.error(f"failed to genereate gemini finetuned response: {e}")
         return {"messages": []}
 
     return {"messages": [AIMessage(content="".join(full_response))]}

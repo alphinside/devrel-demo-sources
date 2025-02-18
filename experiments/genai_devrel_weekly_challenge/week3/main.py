@@ -134,7 +134,7 @@ with gr.Blocks() as demo:
             clear = gr.Button("🗑️ CLEAR Thread History")
 
         model = gr.Dropdown(
-            choices=["gemma2", "gemini-2.0-flash"],
+            choices=["gemma2", "gemini-2.0-flash", "gemini-1.5-finetuned"],
             label="Model",
             value="gemini-2.0-flash",
             interactive=True,
