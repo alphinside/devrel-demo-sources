@@ -6,7 +6,7 @@ In this demos, we can see how we develop and interactive chat assistant using Ge
 
 ## How to Run
 
-1. Get your Gemini API KEY [here](https://aistudio.google.com/apikey)
+1. Get your Gemini API KEY [here](https://aistudio.google.com/apikey) , don't forget to link your API Key to your billing account, for increased Request Rate priority
 2. Rename `settings.yaml.example` into `settings.yaml` and replace the `GEMINI_API_KEY` value with your API KEY
 3. Run the `main.py` script. It will show output like below
 
