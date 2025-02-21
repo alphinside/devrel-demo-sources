@@ -173,11 +173,13 @@ class MultimodalLoop:
         if frame is not None and self.session is not None:
             # Convert BGR to RGB format
             frame_rgb: NDArray[np.uint8] = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            frame_rgb = cv2.resize(frame_rgb, (640, 480))
+
             # Convert frame to bytes
             _, img_encoded = cv2.imencode(".jpg", frame_rgb)
             img_bytes: bytes = img_encoded.tobytes()
 
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.5)
 
             # Send the frame to Gemini
             await self.out_queue.put({"data": img_bytes, "mime_type": "image/jpeg"})  # type: ignore
@@ -185,26 +187,30 @@ class MultimodalLoop:
     async def receive_audio(self) -> None:
         """Background task to reads from the websocket and write pcm chunks to the output queue"""
         while True:
-            turn = self.session.receive()  # type: ignore
-            async for response in turn:
-                print(response)
-                if data := response.data:
-                    if self.audio_output == AudioOutput.PYAUDIO:
-                        self.audio_in_queue.put_nowait(data)  # type: ignore
-                    elif self.audio_output == AudioOutput.GRADIO:
-                        self.audio_in_queue.put_nowait(  # type: ignore
-                            np.frombuffer(data, dtype=np.int16)
-                        )
-                    continue
-                if text := response.text:
-                    print(text, end="")
+            try:
+                turn = self.session.receive()  # type: ignore
+                async for response in turn:
+                    # print(response)
+                    if data := response.data:
+                        if self.audio_output == AudioOutput.PYAUDIO:
+                            self.audio_in_queue.put_nowait(data)  # type: ignore
+                        elif self.audio_output == AudioOutput.GRADIO:
+                            self.audio_in_queue.put_nowait(  # type: ignore
+                                np.frombuffer(data, dtype=np.int16)
+                            )
+                        continue
+                    if text := response.text:
+                        print(text, end="")
 
-            # If you interrupt the model, it sends a turn_complete.
-            # For interruptions to work, we need to stop playback.
-            # So empty out the audio queue because it may have loaded
-            # much more audio than has played yet.
-            while not self.audio_in_queue.empty():  # type: ignore
-                self.audio_in_queue.get_nowait()  # type: ignore
+                # If you interrupt the model, it sends a turn_complete.
+                # For interruptions to work, we need to stop playback.
+                # So empty out the audio queue because it may have loaded
+                # much more audio than has played yet.
+                while not self.audio_in_queue.empty():  # type: ignore
+                    self.audio_in_queue.get_nowait()  # type: ignore
+            except Exception as e:
+                print(e)
+                await asyncio.sleep(0.1)
 
     async def play_audio_with_gradio(
         self,
@@ -255,8 +261,12 @@ class MultimodalLoop:
             output=True,
         )
         while True:
-            bytestream: bytes = await self.audio_in_queue.get()  # type: ignore
-            await asyncio.to_thread(stream.write, bytestream)
+            try:
+                bytestream: bytes = await self.audio_in_queue.get()  # type: ignore
+                await asyncio.to_thread(stream.write, bytestream)
+            except Exception as e:
+                print(f"error in playing audio: {e}")
+                await asyncio.sleep(0.1)
 
     async def run(self) -> None:
         """Runs the main interaction loop with Gemini."""
