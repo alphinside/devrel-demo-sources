@@ -29,8 +29,7 @@ from langgraph.checkpoint.postgres import PostgresSaver
 from google import genai
 from google.genai.types import Part, Content, GenerateContentConfig
 from logger import logger
-import psycopg
-from functools import lru_cache
+from index import initialize_firebase
 
 settings = get_settings()
 MODEL = "gemini-2.0-flash-001"
@@ -40,6 +39,7 @@ You can help users to answer questions about travel,
 book travel, and learn about places they are going to go.
 Provides users ways to get help about their specific travel plans.
 """
+_, vector_store = initialize_firebase()
 
 
 class State(TypedDict):
@@ -87,6 +87,20 @@ def get_model_response(
             "messages": [AIMessage(content="Complete response from Gemini")]
         }
     """
+    global SYSTEM_PROMPT
+
+    # TODO: refactor to tool node
+    relevant_contexts = get_relevant_contexts(state["messages"][-1].content)
+
+    SYSTEM_PROMPT = (
+        SYSTEM_PROMPT
+        + f"""
+Utilize the following context to generate a response if they're relevant:
+
+## Contexts
+{relevant_contexts}  
+"""
+    )
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
@@ -120,31 +134,10 @@ def get_model_response(
     return {"messages": [AIMessage(content="".join(full_response))]}
 
 
-@lru_cache(maxsize=32)  # Cache up to 32 different prompt versions
-def get_prompt_version_content(version: str) -> str:
-    """Get the prompt content for a specific version from the database.
-
-    Args:
-        version: The version of the prompt to retrieve
-
-    Returns:
-        The prompt content as a string
-
-    Note:
-        This function is cached using LRU cache with a maximum size of 32 entries.
-        To force a refresh of the cache, use get_prompt_content.cache_clear()
-    """
-    with psycopg.connect(settings.CHAT_HISTORY_DB_URI) as conn:
-        with conn.cursor() as cursor:
-            cursor.execute(
-                "SELECT prompt FROM prompt_versions WHERE version = %s", (version,)
-            )
-            result = cursor.fetchone()
-            if result:
-                return result[0]
-
-            logger.warning(f"Prompt version {version} not found, using default prompt")
-            return "You are a helpful AI assistant. Please help me with my questions."
+def get_relevant_contexts(text: str) -> list[str]:
+    results = vector_store.similarity_search(text, k=10)
+    contexts = [result.page_content for result in results]
+    return contexts
 
 
 # Initialize the chat graph
