@@ -5,8 +5,11 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "firebase-admin>=6.6.0",
     "google-genai>=1.0.0",
     "gradio>=5.14.0",
+    "langchain-google-firestore>=0.5.0",
+    "langchain-google-genai>=2.0.10",
     "langgraph>=0.2.69",
     "langgraph-checkpoint-postgres>=2.0.13",
     "psycopg-binary>=3.2.4",
