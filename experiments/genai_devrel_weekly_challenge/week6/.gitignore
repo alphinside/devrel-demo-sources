@@ -10,3 +10,4 @@ converted_data/*
 serviceAccount.json
 firebase-credentials.json
 *-firebase-adminsdk-*.json
+.deepeval*

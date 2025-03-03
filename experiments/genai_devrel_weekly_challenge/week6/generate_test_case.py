@@ -21,8 +21,6 @@ import typer
 from tqdm import tqdm
 import PIL.Image
 from pydantic import BaseModel
-
-# Import necessary modules from index.py
 from index import (
     list_genai_l200_files,
     read_pdf_from_gcs,
@@ -115,9 +113,7 @@ def download_gcs_file(gcs_uri: str) -> str:
 
 def main(
     output_file: str = "test_cases.json",
-    num_pdf_questions: int = 10,
-    num_image_questions: int = 10,
-    total_questions: int = 20,
+    total_questions: int = 25,
 ) -> None:
     """Generate test cases from PDFs and images in Google Cloud Storage.
 
@@ -130,8 +126,6 @@ def main(
 
     Args:
         output_file: Path to output JSON file
-        num_pdf_questions: Number of questions to generate per PDF
-        num_image_questions: Number of questions to generate per image
         total_questions: Total number of questions to include in final output
     """
     # Get list of PDFs and images
@@ -142,16 +136,16 @@ def main(
 
     pdf_contents = ""
     # Load PDF content
-    print(f"Processing {len(pdf_files)} PDF files...")
+    typer.echo(f"Processing {len(pdf_files)} PDF files...")
     for pdf_file in tqdm(pdf_files):
         pdf_contents += read_pdf_from_gcs(BUCKET_NAME, pdf_file)
 
     test_generation_prompt.append(
-        PROMPT.format(pdf_contents=pdf_contents, num_questions=25)
+        PROMPT.format(pdf_contents=pdf_contents, num_questions=total_questions)
     )
 
     # Load Image content
-    print(f"Processing {len(image_files)} image files...")
+    typer.echo(f"Processing {len(image_files)} image files...")
     for image_file in tqdm(image_files):
         image_path = f"gs://{BUCKET_NAME}/{image_file}"
         local_file_path = download_gcs_file(image_path)
@@ -159,7 +153,7 @@ def main(
 
         test_generation_prompt.append(pil_image)
 
-    print("Generating question-answer pairs with Gemini...")
+    typer.echo("Generating question-answer pairs with Gemini...")
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     response = client.models.generate_content(
         model="gemini-2.0-flash",
@@ -179,8 +173,10 @@ def main(
     with open(output_file, "w") as f:
         json.dump(serializable_data, f, indent=2)
 
-    print(f"Generated {len(serializable_data)} test cases and saved to {output_file}")
-    print(
+    typer.echo(
+        f"Generated {len(serializable_data)} test cases and saved to {output_file}"
+    )
+    typer.echo(
         f"Sample question: {serializable_data[0]['question'] if serializable_data else 'No questions generated'}"
     )
 

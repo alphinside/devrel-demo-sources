@@ -264,11 +264,13 @@ class GraphManager:
         compiled_graph: Compiled instance of the chatbot graph
     """
 
-    def __init__(self) -> None:
+    def __init__(self, use_memory: bool = True) -> None:
         """Initialize the ChatbotManager with empty connection and graph."""
         self.conn: Connection | None = None
         self.checkpointer: PostgresSaver | None = None
         self.compiled_graph: Any = None  # Type Any due to langgraph's dynamic typing
+        self.use_memory = use_memory
+
         self.setup_connection()
 
     def setup_connection(self) -> None:
@@ -281,13 +283,15 @@ class GraphManager:
             "autocommit": True,
             "prepare_threshold": 0,
         }
-        if self.conn is None:
+        if self.conn is None and self.use_memory:
             self.conn = Connection.connect(
                 settings.CHAT_HISTORY_DB_URI, **connection_kwargs
             )
             self.checkpointer = PostgresSaver(self.conn)
             self.checkpointer.setup()
             self.graph = graph.compile(checkpointer=self.checkpointer)
+        else:
+            self.graph = graph.compile()
 
     def __del__(self) -> None:
         """Clean up database connection on object destruction."""
