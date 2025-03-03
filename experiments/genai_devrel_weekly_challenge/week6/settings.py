@@ -23,7 +23,11 @@ from pydantic_settings import (
 from typing import Type, Tuple
 
 IMAGE_EMBEDDING_DIMENSION = 512
-IMAGE_EMBEDDING_FIELD_NAME = "embedding"
+PDF_EMBEDDING_DIMENSION = 768
+EMBEDDING_FIELD_NAME = "embedding"
+BUCKET_NAME = "genai-l200-training"
+IMAGE_PREFIX = "images/"
+PDF_PREFIX = "documents/"
 
 
 class Settings(BaseSettings):
@@ -45,8 +49,8 @@ class Settings(BaseSettings):
     DB_CONNECTION_NAME: str
     VERTEX_PROJECT_ID: str
     VERTEX_LOCATION: str
-    DOCS_COLLECTION_NAME: str = "documents_week6"
-    IMAGE_COLLECTION_NAME: str = "images_week6"
+    DOCS_COLLECTION_NAME: str = "pdf_collection"
+    IMAGE_COLLECTION_NAME: str = "image_collection"
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"

@@ -1683,6 +1683,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pypdf2"
+version = "3.0.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/bb/18dc3062d37db6c491392007dfd1a7f524bb95886eb956569ac38a23a784/PyPDF2-3.0.1.tar.gz", hash = "sha256:a74408f69ba6271f71b9352ef4ed03dc53a31aa404d29b5d31f53bfecfee1440", size = 227419 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8e/5e/c86a5643653825d3c913719e788e41386bee415c2b87b4f955432f2de6b2/pypdf2-3.0.1-py3-none-any.whl", hash = "sha256:d16e4205cfee272fbdc0568b68d82be796540b1537508cef59388f839c191928", size = 232572 },
+]
+
+[[package]]
 name = "python-dateutil"
 version = "2.9.0.post0"
 source = { registry = "https://pypi.org/simple" }
@@ -2100,6 +2109,7 @@ dependencies = [
     { name = "langgraph-checkpoint-postgres" },
     { name = "psycopg-binary" },
     { name = "pydantic-settings", extra = ["yaml"] },
+    { name = "pypdf2" },
     { name = "typer" },
     { name = "vertexai" },
 ]
@@ -2115,6 +2125,7 @@ requires-dist = [
     { name = "langgraph-checkpoint-postgres", specifier = ">=2.0.13" },
     { name = "psycopg-binary", specifier = ">=3.2.4" },
     { name = "pydantic-settings", extras = ["yaml"], specifier = ">=2.7.1" },
+    { name = "pypdf2", specifier = ">=3.0.1" },
     { name = "typer", specifier = ">=0.15.1" },
     { name = "vertexai", specifier = ">=1.71.1" },
 ]
