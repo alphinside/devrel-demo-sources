@@ -13,3 +13,7 @@ Key points:
 
 - **Google Maps Geocoding API**: Used to convert location names to geographic coordinates (latitude and longitude)
 - **Open-Meteo Weather API**: Used to retrieve current weather data for locations based on coordinates
+
+## How to Evaluate
+
+- Run the test using `deepeval run test test_function_calling.py`
