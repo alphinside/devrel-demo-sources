@@ -51,6 +51,7 @@ class State(TypedDict):
     """
 
     messages: Annotated[list[BaseMessage], add_messages]
+    latest_func_call_name: list[str]
 
 
 def format_chat_to_gemini_standard(messages: list) -> list[Content]:
@@ -89,7 +90,6 @@ def get_model_response(
     global SYSTEM_PROMPT
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
-
     config = GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT, tools=[get_weather_tool]
     )
@@ -110,18 +110,30 @@ def get_model_response(
             json_fields = {
                 "response": chunk.dict(),
             }
+
             logger.debug(
                 "gemini response is generated", extra={"json_fields": json_fields}
             )
 
             writer(chunk.text)
             full_response.append(chunk.text)
+
     except Exception as e:
         writer(f"failed to generate response: {e}")
         logger.error(f"failed to genereate gemini response: {e}")
         return {"messages": []}
 
-    return {"messages": [AIMessage(content="".join(full_response))]}
+    auto_func_call = chunk.automatic_function_calling_history
+    latest_func_call_name = []
+    if auto_func_call:
+        for history in reversed(auto_func_call):
+            if history.parts[0].function_call:
+                latest_func_call_name.append(history.parts[0].function_call.name)
+
+    return {
+        "messages": [AIMessage(content="".join(full_response))],
+        "latest_func_call_name": latest_func_call_name,
+    }
 
 
 # Initialize the chat graph
@@ -143,11 +155,13 @@ class GraphManager:
         compiled_graph: Compiled instance of the chatbot graph
     """
 
-    def __init__(self) -> None:
+    def __init__(self, use_memory: bool = True) -> None:
         """Initialize the ChatbotManager with empty connection and graph."""
         self.conn: Connection | None = None
         self.checkpointer: PostgresSaver | None = None
         self.compiled_graph: Any = None  # Type Any due to langgraph's dynamic typing
+        self.use_memory = use_memory
+
         self.setup_connection()
 
     def setup_connection(self) -> None:
@@ -160,13 +174,16 @@ class GraphManager:
             "autocommit": True,
             "prepare_threshold": 0,
         }
-        if self.conn is None:
+        if self.conn is None and self.use_memory:
             self.conn = Connection.connect(
                 settings.CHAT_HISTORY_DB_URI, **connection_kwargs
             )
             self.checkpointer = PostgresSaver(self.conn)
             self.checkpointer.setup()
             self.graph = graph.compile(checkpointer=self.checkpointer)
+        else:
+            self.graph = graph.compile()
+            logger.info("Database connection skipped due to use_memory being False.") # Add this line
 
     def __del__(self) -> None:
         """Clean up database connection on object destruction."""
