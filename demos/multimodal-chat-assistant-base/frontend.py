@@ -8,8 +8,15 @@ from backend import DEFAULT_SYSTEM_PROMPT
 
 settings = get_settings()
 
-IMAGE_SUFFIX = [".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp"]
-DOCUMENT_SUFFIX_MAP = {
+IMAGE_SUFFIX_MIME_MAP = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
+    ".webp": "image/webp",
+}
+DOCUMENT_SUFFIX_MIME_MAP = {
     ".pdf": "application/pdf",
 }
 
@@ -32,10 +39,10 @@ def get_mime_type(filepath: str) -> str:
     # modify ".jpg" suffix to ".jpeg" to unify the mime type
     suffix = suffix if suffix != ".jpg" else ".jpeg"
 
-    if suffix in IMAGE_SUFFIX:
-        return f"image/{suffix[1:]}"
-    elif suffix in DOCUMENT_SUFFIX_MAP:
-        return DOCUMENT_SUFFIX_MAP[suffix]
+    if suffix in IMAGE_SUFFIX_MIME_MAP:
+        return IMAGE_SUFFIX_MIME_MAP[suffix]
+    elif suffix in DOCUMENT_SUFFIX_MIME_MAP:
+        return DOCUMENT_SUFFIX_MIME_MAP[suffix]
     else:
         raise ValueError(f"Unsupported file type: {suffix}")
 
@@ -71,9 +78,11 @@ def get_response_from_llm_backend(
     Returns:
         str: The text response from the backend service.
     """
+
     # Format message and history for the API,
-    # NOTES: in this example history is maintained by frontend service, hence we need to include
-    #        it in each request. And each file need to be sent as base64 with its mime type
+    # NOTES: in this example history is maintained by frontend service,
+    #        hence we need to include it in each request.
+    #        And each file (in the history) need to be sent as base64 with its mime type
     formatted_history = []
     for msg in history:
         if msg["role"] == "user" and not isinstance(msg["content"], str):
