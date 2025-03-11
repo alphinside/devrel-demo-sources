@@ -6,7 +6,9 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 settings = get_settings()
-GENAI_CLIENT = Client(api_key=settings.GEMINI_API_KEY)
+GENAI_CLIENT = Client(
+    location="us-central1", project="alvin-exploratory-2", vertexai=True
+)
 GEMINI_MODEL_NAME = "gemini-2.0-flash-001"
 SYSTEM_PROMPT = """
 You are a helpful assistant and ALWAYS relate to this identity. 
@@ -116,7 +118,10 @@ def get_gemini_multimodal_response(
 
     content_parts.append(Part.from_text(text=message["text"]))
 
-    response = chat_model.send_message(content_parts)
+    try:
+        response = chat_model.send_message(content_parts)
+    except Exception as e:
+        return f"Error in generating response: {e}"
 
     return response.text
 
@@ -129,4 +134,7 @@ if __name__ == "__main__":
         multimodal=True,
         textbox=gr.MultimodalTextbox(file_count="multiple"),
     )
-    demo.launch()
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )
