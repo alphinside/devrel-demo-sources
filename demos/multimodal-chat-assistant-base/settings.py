@@ -30,10 +30,13 @@ class Settings(BaseSettings):
     loaded from settings.yaml file and overridable via environment variables.
 
     Attributes:
-        GEMINI_API_KEY: Gemini API key for generating responses
+        VERTEXAI_LOCATION: Google Cloud Vertex AI location
+        VERTEXAI_PROJECT_ID: Google Cloud Vertex AI project ID
     """
 
-    GEMINI_API_KEY: str
+    VERTEXAI_LOCATION: str
+    VERTEXAI_PROJECT_ID: str
+    BACKEND_URL: str = "http://localhost:8000/chat"
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"

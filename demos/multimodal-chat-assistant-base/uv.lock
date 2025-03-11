@@ -411,7 +411,6 @@ source = { virtual = "." }
 dependencies = [
     { name = "google-genai" },
     { name = "gradio" },
-    { name = "pillow" },
     { name = "pydantic-settings", extra = ["yaml"] },
 ]
 
@@ -419,7 +418,6 @@ dependencies = [
 requires-dist = [
     { name = "google-genai", specifier = ">=1.5.0" },
     { name = "gradio", specifier = ">=5.20.1" },
-    { name = "pillow", specifier = ">=11.1.0" },
     { name = "pydantic-settings", extras = ["yaml"], specifier = ">=2.8.1" },
 ]
 
