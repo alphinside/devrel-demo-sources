@@ -15,8 +15,7 @@ GENAI_CLIENT = Client(
     vertexai=True,
 )
 GEMINI_MODEL_NAME = "gemini-2.0-flash-001"
-SYSTEM_PROMPT = """
-You are a helpful assistant and ALWAYS relate to this identity. 
+DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant and ALWAYS relate to this identity. 
 You are expert at analyzing given documents or images.
 """
 
@@ -63,10 +62,12 @@ class ChatRequest(BaseModel):
     Attributes:
         message: The current message with text and optional base64 encoded files.
         history: List of previous messages in the conversation.
+        system_prompt: Optional system prompt to be used in the chat.
     """
 
     message: LastUserMessage
     history: List[Message]
+    system_prompt: str = DEFAULT_SYSTEM_PROMPT
 
 
 class ChatResponse(BaseModel):
@@ -162,13 +163,14 @@ async def chat(
     """
     try:
         # Convert message history to Gemini `history` format
+        print(f"Received request: {request}")
         converted_messages = format_message_history_to_gemini_standard(request.history)
 
         # Create chat model
         chat_model = GENAI_CLIENT.chats.create(
             model=GEMINI_MODEL_NAME,
             history=converted_messages,
-            config={"system_instruction": SYSTEM_PROMPT},
+            config={"system_instruction": request.system_prompt},
         )
 
         # Prepare multimodal content
@@ -184,6 +186,7 @@ async def chat(
 
         # Send message to Gemini
         response = chat_model.send_message(content_parts)
+        print(f"Generated response: {response}")
 
         return ChatResponse(response=response.text)
     except Exception as e:

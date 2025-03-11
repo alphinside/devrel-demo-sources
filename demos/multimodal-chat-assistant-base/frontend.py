@@ -4,6 +4,7 @@ import base64
 from pathlib import Path
 from typing import List, Dict, Any
 from settings import get_settings
+from backend import DEFAULT_SYSTEM_PROMPT
 
 settings = get_settings()
 
@@ -56,13 +57,16 @@ def encode_file_to_base64_with_mime(file_path: str) -> Dict[str, str]:
 
 
 def get_response_from_llm_backend(
-    message: Dict[str, Any], history: List[Dict[str, Any]]
+    message: Dict[str, Any],
+    history: List[Dict[str, Any]],
+    system_prompt: str,
 ) -> str:
     """Send the message and history to the backend and get a response.
 
     Args:
         message: Dictionary containing the current message with 'text' and optional 'files' keys.
         history: List of previous message dictionaries in the conversation.
+        system_prompt: The system prompt to be sent to the backend.
 
     Returns:
         str: The text response from the backend service.
@@ -92,6 +96,7 @@ def get_response_from_llm_backend(
     payload = {
         "message": {"text": message["text"], "files": files_with_mime},
         "history": formatted_history,
+        "system_prompt": system_prompt,
     }
 
     # Send request to backend
@@ -116,6 +121,14 @@ if __name__ == "__main__":
         type="messages",
         multimodal=True,
         textbox=gr.MultimodalTextbox(file_count="multiple"),
+        additional_inputs=[
+            gr.Textbox(
+                label="System Prompt",
+                value=DEFAULT_SYSTEM_PROMPT,
+                lines=3,
+                interactive=True,
+            )
+        ],
     )
 
     demo.launch(
