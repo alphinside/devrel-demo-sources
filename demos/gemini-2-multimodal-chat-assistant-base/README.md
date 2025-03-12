@@ -7,6 +7,8 @@ Built using Gradio for the frontend and FastAPI as the backend
 
 ## How To
 
+### Trying Out Locally
+
 - If you are running this demo on local machine, run the command below to generate the JSON file
 
     ```shell
@@ -42,3 +44,15 @@ Built using Gradio for the frontend and FastAPI as the backend
     ```
 
 - If succeeded, you can access the Web UI in the `http://0.0.0.0:7860`
+
+### Deploying to CloudRun
+
+- Copy the `settings.yaml.example` to `settings.yaml` and update the `VERTEXAI_PROJECT_ID` and `VERTEXAI_LOCATION` accordingly
+
+- Run the following command
+
+    ```shell
+    gcloud run deploy --source . \
+                      --env-vars-file settings.yaml \
+                      --port 7860
+    ```
