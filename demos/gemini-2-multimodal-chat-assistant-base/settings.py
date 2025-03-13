@@ -40,7 +40,7 @@ class Settings(BaseSettings):
 
     VERTEXAI_LOCATION: str
     VERTEXAI_PROJECT_ID: str
-    BACKEND_URL: str = "http://localhost:8000/chat"
+    BACKEND_URL: str = "http://localhost:8081/chat"
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"
