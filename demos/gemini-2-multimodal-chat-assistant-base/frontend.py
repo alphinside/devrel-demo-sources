@@ -3,8 +3,7 @@ import requests
 import base64
 from pathlib import Path
 from typing import List, Dict, Any
-from settings import get_settings
-from backend import DEFAULT_SYSTEM_PROMPT
+from settings import get_settings, DEFAULT_SYSTEM_PROMPT
 
 settings = get_settings()
 

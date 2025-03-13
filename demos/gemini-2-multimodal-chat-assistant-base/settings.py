@@ -22,6 +22,10 @@ from pydantic_settings import (
 )
 from typing import Type, Tuple
 
+DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant and ALWAYS relate to this identity. 
+You are expert at analyzing given documents or images.
+"""
+
 
 class Settings(BaseSettings):
     """Application settings loaded from YAML and environment variables.

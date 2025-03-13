@@ -2,7 +2,7 @@ import base64
 from fastapi import FastAPI, Body
 from google.genai.types import Content, Part
 from google.genai import Client
-from settings import get_settings
+from settings import get_settings, DEFAULT_SYSTEM_PROMPT
 from typing import List, Optional
 from pydantic import BaseModel
 
@@ -15,9 +15,6 @@ GENAI_CLIENT = Client(
     vertexai=True,
 )
 GEMINI_MODEL_NAME = "gemini-2.0-flash-001"
-DEFAULT_SYSTEM_PROMPT = """You are a helpful assistant and ALWAYS relate to this identity. 
-You are expert at analyzing given documents or images.
-"""
 
 
 class FileData(BaseModel):
