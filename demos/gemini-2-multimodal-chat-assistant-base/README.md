@@ -43,7 +43,7 @@ Built using Gradio for the frontend and FastAPI as the backend
     uv run frontend.py
     ```
 
-- If succeeded, you can access the Web UI in the `http://0.0.0.0:7860`
+- If succeeded, you can access the Web UI in the `http://0.0.0.0:8080`
 
 ### Deploying to CloudRun
 
@@ -54,5 +54,5 @@ Built using Gradio for the frontend and FastAPI as the backend
     ```shell
     gcloud run deploy --source . \
                       --env-vars-file settings.yaml \
-                      --port 7860
+                      --port 8080
     ```

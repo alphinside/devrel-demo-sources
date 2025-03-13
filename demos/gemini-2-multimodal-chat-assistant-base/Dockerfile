@@ -10,7 +10,7 @@ WORKDIR /app
 
 RUN uv sync --frozen
 
-EXPOSE 7860
+EXPOSE 8080
 
 # Copy supervisord configuration
 COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
