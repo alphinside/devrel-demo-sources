@@ -75,8 +75,10 @@ class Settings(BaseSettings):
         """
         return (
             init_settings,  # First, try init_settings (from constructor)
-            YamlConfigSettingsSource(settings_cls),  # Then, try YAML
-            env_settings,  # Finally, try environment variables
+            env_settings,  # Then, try environment variables
+            YamlConfigSettingsSource(
+                settings_cls
+            ),  # Finally, try YAML as the last resort
         )
 
 
