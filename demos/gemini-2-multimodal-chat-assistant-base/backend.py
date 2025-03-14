@@ -125,13 +125,7 @@ def format_message_history_to_gemini_standard(
                 # Process each file in the list
                 parts = []
                 for file_data in message.content:
-                    if (
-                        isinstance(file_data, dict)
-                        and "data" in file_data
-                        and "mime_type" in file_data
-                    ):
-                        file_obj = FileData(**file_data)
-                        parts.append(handle_multimodal_data(file_obj))
+                    parts.append(handle_multimodal_data(file_data))
 
                 # Add the parts to a Content object
                 if parts:
