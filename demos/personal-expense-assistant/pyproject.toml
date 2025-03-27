@@ -1,0 +1,12 @@
+[project]
+name = "personal-expense-assistant"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "google-genai>=1.7.0",
+    "gradio>=5.23.1",
+    "pydantic-settings[yaml]>=2.8.1",
+    "smolagents[litellm]>=1.12.0",
+]
