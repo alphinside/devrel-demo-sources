@@ -25,14 +25,12 @@ def encode_image_to_base64(image_path: str) -> Dict[str, str]:
 def get_response_from_llm_backend(
     message: Dict[str, Any],
     history: List[Dict[str, Any]],
-    system_prompt: str,
 ) -> str:
     """Send the message and history to the backend and get a response.
 
     Args:
         message: Dictionary containing the current message with 'text' and optional 'files' keys.
         history: List of previous message dictionaries in the conversation.
-        system_prompt: The system prompt to be sent to the backend.
 
     Returns:
         str: The text response from the backend service.
@@ -41,7 +39,7 @@ def get_response_from_llm_backend(
     # Format message and history for the API,
     # NOTES: in this example history is maintained by frontend service,
     #        hence we need to include it in each request.
-    #        And each file (in the history) need to be sent as base64 with its mime type
+    #        And each image (in the history) need to be sent as base64
     formatted_history = []
     for msg in history:
         if msg["role"] == "user" and not isinstance(msg["content"], str):
@@ -53,17 +51,20 @@ def get_response_from_llm_backend(
         else:
             formatted_history.append({"role": msg["role"], "content": msg["content"]})
 
-    # Extract files and convert to base64 with MIME type
+    # Extract files and convert to base64
     images_file = []
     if uploaded_files := message.get("files", []):
         for file_path in uploaded_files:
             images_file.append(encode_image_to_base64(file_path))
 
+        formatted_history.append({"role": "user", "content": images_file})
+
+    if message["text"]:
+        formatted_history.append({"role": "user", "content": message["text"]})
+
     # Prepare the request payload
     payload = {
-        "message": {"text": message["text"], "files": images_file},
-        "history": formatted_history,
-        "system_prompt": system_prompt,
+        "chat_history": formatted_history,
     }
 
     # Send request to backend
