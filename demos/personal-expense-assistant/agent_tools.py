@@ -39,6 +39,19 @@ def store_receipt_data(
         receipt_description: A detailed description of the receipt
     """
     try:
+        # In case of it provide full image placeholder, extract the id string
+        if image_id.startswith("[IMAGE-"):
+            image_id = image_id.split("ID ")[1].split("]")[0]
+
+        # Check if the receipt already exists
+        query = COLLECTION.where(
+            filter=FieldFilter("receipt_id", "==", image_id)
+        ).limit(1)
+        docs = list(query.stream())
+
+        if docs:
+            return f"Receipt with ID {image_id} already exists"
+
         # Create a combined text from all receipt information for better embedding
         receipt_full_info = f"""
         Store: {store_name}
@@ -52,10 +65,6 @@ def store_receipt_data(
         )
 
         embedding = result.embeddings[0].values
-
-        # In case of it provide full image placeholder, extract the id string
-        if image_id.startswith("[IMAGE-"):
-            image_id = image_id.split("ID ")[1].split("]")[0]
 
         doc = {
             "receipt_id": image_id,
@@ -75,7 +84,7 @@ def store_receipt_data(
 
 
 @tool
-def get_receipt_data_by_image_id(image_id: str) -> str:
+def get_receipt_data_by_image_id(image_id: str) -> dict:
     """
     Retrieve receipt data from the database using the image_id.
 
@@ -84,9 +93,20 @@ def get_receipt_data_by_image_id(image_id: str) -> str:
                 [IMAGE-ID 12345] or [IMAGE-POSITION 0-ID 12345], the ID to use is 12345.
 
     Returns:
-        A formatted string containing the receipt data or an error message if not found.
+        A dictionary containing the receipt data or an error message if not found.
+        With the following keys:
+            - receipt_id: The unique identifier of the receipt image.
+            - store_name: The name of the store.
+            - transaction_time: The time of purchase in UTC.
+            - total_amount: The total amount spent.
+            - currency: The currency of the transaction.
+            - receipt_description: A detailed description of the receipt contains the items.
     """
     try:
+        # In case of it provide full image placeholder, extract the id string
+        if image_id.startswith("[IMAGE-"):
+            image_id = image_id.split("ID ")[1].split("]")[0]
+
         # Query the receipts collection for documents with matching receipt_id (image_id)
         query = COLLECTION.where(
             filter=FieldFilter("receipt_id", "==", image_id)
@@ -99,17 +119,6 @@ def get_receipt_data_by_image_id(image_id: str) -> str:
         # Get the first matching document
         doc_data = docs[0].to_dict()
 
-        # Format the receipt data
-        formatted_data = f"""
-        Receipt ID: {image_id}
-        Store: {doc_data.get("store_name", "N/A")}
-        Date: {doc_data.get("transaction_time", "N/A")}
-        Amount: {doc_data.get("total_amount", "N/A")} {doc_data.get("currency", "N/A")}
-        Description: {doc_data.get("receipt_description", "N/A")}
-        """
-
-        print(formatted_data)
-
-        return formatted_data
+        return doc_data
     except Exception as e:
         return f"Error retrieving receipt: {str(e)}"
