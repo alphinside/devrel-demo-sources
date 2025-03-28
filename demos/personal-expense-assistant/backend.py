@@ -31,9 +31,12 @@ IMPORTANT INFORMATION ABOUT IMAGES:
   it will appear in the conversation as a placeholder in the format of
   [IMAGE-ID <hash-id>], as the image data will not be provided directly to you.
   You will need to use tool to fetch the receipt content using the hash-id.
-- These placeholders correspond to images in an array that you can analyze.
+- These placeholders correspond to images in an array (that is not visible to the user) that you can analyze.
 - Image data placeholder [IMAGE-POSITION 0-ID <hash-id>] refers to the first image (index 0) in the images data provided.
   where <hash-id> is the unique identifier of the image.
+- When user refers to an image by position, it refer to the appearance of image in the conversation history which might
+  different from the position of image in the images data provided. If you are not sure about this, always ask verification
+  to the user.
 
 When analyzing receipt images, extract and organize the following information 
 when available:

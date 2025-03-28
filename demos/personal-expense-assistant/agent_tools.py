@@ -52,8 +52,12 @@ def store_receipt_data(
 
         embedding = result.embeddings[0].values
 
+        # In case of it provide full image placeholder, extract the id string
+        if image_id.startswith("[IMAGE-"):
+            image_id = image_id.split("ID ")[1].split("]")[0]
+
         doc = {
-            "name": image_id,
+            "receipt_id": image_id,
             "store_name": store_name,
             "transaction_time": transaction_time,
             "total_amount": total_amount,
@@ -67,3 +71,40 @@ def store_receipt_data(
         return f"Receipt stored successfully with ID: {image_id}"
     except Exception as e:
         return f"Failed to store receipt: {str(e)}"
+
+
+@tool
+def get_receipt_data(image_id: str) -> str:
+    """
+    Retrieve receipt data from the database using the image_id.
+
+    Args:
+        image_id: The unique identifier of the receipt image. For example, if the placeholder is
+                [IMAGE-ID 12345] or [IMAGE-POSITION 0-ID 12345], the ID to use is 12345.
+
+    Returns:
+        A formatted string containing the receipt data or an error message if not found.
+    """
+    try:
+        # Query the receipts collection for documents with matching receipt_id (image_id)
+        query = COLLECTION.where("receipt_id", "==", image_id).limit(1)
+        docs = list(query.stream())
+
+        if not docs:
+            return f"No receipt found with ID: {image_id}"
+
+        # Get the first matching document
+        doc_data = docs[0].to_dict()
+
+        # Format the receipt data
+        formatted_data = f"""
+        Receipt ID: {image_id}
+        Store: {doc_data.get("store_name", "N/A")}
+        Date: {doc_data.get("transaction_time", "N/A")}
+        Amount: {doc_data.get("total_amount", "N/A")} {doc_data.get("currency", "N/A")}
+        Description: {doc_data.get("receipt_description", "N/A")}
+        """
+
+        return formatted_data
+    except Exception as e:
+        return f"Error retrieving receipt: {str(e)}"
