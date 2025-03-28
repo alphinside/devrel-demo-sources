@@ -30,12 +30,12 @@ class Settings(BaseSettings):
     loaded from settings.yaml file and overridable via environment variables.
 
     Attributes:
-        VERTEXAI_LOCATION: Google Cloud Vertex AI location
-        VERTEXAI_PROJECT_ID: Google Cloud Vertex AI project ID
+        GCLOUD_LOCATION: Google Cloud location
+        GCLOUD_PROJECT_ID: Google Cloud project ID
     """
 
-    VERTEXAI_LOCATION: str
-    VERTEXAI_PROJECT_ID: str
+    GCLOUD_LOCATION: str
+    GCLOUD_PROJECT_ID: str
     BACKEND_URL: str = "http://localhost:8081/chat"
     STORAGE_BUCKET_NAME: str = "personal-expense-assistant-receipts"
 

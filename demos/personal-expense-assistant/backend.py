@@ -12,9 +12,9 @@ from agent_tools import store_receipt_data
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
 
-settings = get_settings()
-litellm.vertex_project = settings.VERTEXAI_PROJECT_ID
-litellm.vertex_location = settings.VERTEXAI_LOCATION
+SETTINGS = get_settings()
+litellm.vertex_project = SETTINGS.GCLOUD_PROJECT_ID
+litellm.vertex_location = SETTINGS.GCLOUD_LOCATION
 
 
 # System prompt template for the expense processing agent

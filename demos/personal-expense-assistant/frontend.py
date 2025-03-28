@@ -6,8 +6,7 @@ from settings import get_settings
 from pathlib import Path
 
 
-settings = get_settings()
-
+SETTINGS = get_settings()
 IMAGE_SUFFIX_MIME_MAP = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -102,7 +101,7 @@ def get_response_from_llm_backend(
 
     # Send request to backend
     try:
-        response = requests.post(settings.BACKEND_URL, json=payload)
+        response = requests.post(SETTINGS.BACKEND_URL, json=payload)
         response.raise_for_status()  # Raise exception for HTTP errors
 
         result = response.json()
