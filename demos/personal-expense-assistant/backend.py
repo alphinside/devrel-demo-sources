@@ -8,7 +8,12 @@ from pydantic import BaseModel
 from PIL import Image
 import io
 import hashlib
-from agent_tools import store_receipt_data, get_receipt_data_by_image_id
+from agent_tools import (
+    store_receipt_data,
+    get_receipt_data_by_image_id,
+    search_receipts_by_metadata_filter,
+    search_receipts_by_natural_language_query,
+)
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
 
@@ -279,7 +284,14 @@ async def chat(
 
         # Initialize the model and agent
         model = LiteLLMModel(model_id="vertex_ai/gemini-2.0-flash-001", temperature=0)
-        agent = CodeAgent(tools=[store_receipt_data], model=model)
+        agent = CodeAgent(
+            tools=[
+                store_receipt_data,
+                search_receipts_by_metadata_filter,
+                search_receipts_by_natural_language_query,
+            ],
+            model=model,
+        )
 
         # Reformat chat history and extract images
         formatted_history = reformat_chat_history(request.chat_history)
@@ -295,6 +307,7 @@ async def chat(
                 history=formatted_history, recent_message=formatted_recent_message
             ),
             images=recent_images,
+            max_steps=5,
         )
 
         print(f"Generated response: {result}")

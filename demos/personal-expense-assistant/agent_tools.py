@@ -2,6 +2,8 @@ import datetime
 from google.cloud import firestore
 from google.cloud.firestore_v1.vector import Vector
 from google.cloud.firestore_v1 import FieldFilter
+from google.cloud.firestore_v1.base_query import And
+from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from settings import get_settings
 from google import genai
 from smolagents import tool
@@ -15,6 +17,7 @@ GENAI_CLIENT = genai.Client(
     vertexai=True, location=SETTINGS.GCLOUD_LOCATION, project=SETTINGS.GCLOUD_PROJECT_ID
 )
 EMBEDDING_DIMENSION = 768
+EMBEDDING_FIELD_NAME = "embedding"
 INVALID_ITEMS_FORMAT_ERR = """
 Invalid items format. Must be a list of dictionaries with 'name', 'price', and 'quantity' keys."
 """
@@ -26,8 +29,8 @@ def store_receipt_data(
     store_name: str,
     transaction_time: datetime.datetime,
     total_amount: float,
-    currency: str,
     items: list[dict[str, str]],
+    currency: str = "IDR",
 ) -> str:
     """
     This is a tool that stores receipt data in a database.
@@ -38,7 +41,6 @@ def store_receipt_data(
         store_name: The name of the store.
         transaction_time: The time of purchase in UTC
         total_amount: The total amount spent.
-        currency: The currency of the transaction. If not explicitly provided, derive from the transaction country location.
         items: A list of items purchased with their prices. Items object must have the following keys:
             - name: The name of the item.
             - price: The price of the item.
@@ -56,6 +58,8 @@ def store_receipt_data(
                     "price": 20000
                 }
             ]
+        currency: The currency of the transaction, can be derived from the store location.
+            If unsure, default is "IDR".
     """
     try:
         # In case of it provide full image placeholder, extract the id string
@@ -67,6 +71,12 @@ def store_receipt_data(
 
         if doc:
             return f"Receipt with ID {image_id} already exists"
+
+        # Validate transaction time
+        if not isinstance(transaction_time, datetime.datetime):
+            raise ValueError(
+                "Invalid transaction time format. Must be datetime object."
+            )
 
         # Validate items format
         if not isinstance(items, list):
@@ -83,7 +93,8 @@ def store_receipt_data(
         receipt_full_info = f"""
         Store: {store_name}
         Transaction Time: {transaction_time}
-        Amount: {total_amount} {currency}
+        Amount: {total_amount}
+        Currency: {currency}
         Items: {items}
         """
 
@@ -100,7 +111,7 @@ def store_receipt_data(
             "total_amount": total_amount,
             "currency": currency,
             "items": items,
-            "embedding": Vector(embedding),
+            EMBEDDING_FIELD_NAME: Vector(embedding),
         }
 
         COLLECTION.add(doc)
@@ -108,6 +119,110 @@ def store_receipt_data(
         return f"Receipt stored successfully with ID: {image_id}"
     except Exception as e:
         return f"Failed to store receipt: {str(e)}"
+
+
+@tool
+def search_receipts_by_metadata_filter(
+    start_time: datetime.datetime,
+    end_time: datetime.datetime,
+    min_total_amount: float = None,
+    max_total_amount: float = None,
+    store_name: str = None,
+) -> list:
+    """
+    Filter receipts by metadata within a specific time range and optionally by amount.
+
+    Args:
+        start_time: The start datetime for the filter (inclusive) - REQUIRED
+        end_time: The end datetime for the filter (inclusive) - REQUIRED
+        min_total_amount: The minimum total amount for the filter (inclusive) - OPTIONAL
+        max_total_amount: The maximum total amount for the filter (inclusive) - OPTIONAL
+        store_name: The store name (exact match) for the filter - OPTIONAL
+
+    Returns:
+        A list of receipt data matching all applied filters
+    """
+    try:
+        # Start with the base collection reference
+        query = COLLECTION
+
+        # Convert datetime objects to ISO format strings for Firestore compatibility
+        start_time_str = start_time.isoformat() + "Z"  # Add Z for UTC timezone
+        end_time_str = end_time.isoformat() + "Z"  # Add Z for UTC timezone
+
+        # Build the composite query by properly chaining conditions
+        filters = [
+            FieldFilter("transaction_time", ">=", start_time_str),
+            FieldFilter("transaction_time", "<=", end_time_str),
+        ]
+
+        # Add optional filters
+        if min_total_amount is not None:
+            filters.append(FieldFilter("total_amount", ">=", min_total_amount))
+
+        if max_total_amount is not None:
+            filters.append(FieldFilter("total_amount", "<=", max_total_amount))
+
+        if store_name is not None:
+            filters.append(FieldFilter("store_name", "==", store_name))
+
+        # Apply the filters
+        composite_filter = And(filters=filters)
+        query = query.where(filter=composite_filter)
+
+        # Execute the query and collect results
+        receipts = []
+        for doc in query.stream():
+            data = doc.to_dict()
+            data.pop(
+                EMBEDDING_FIELD_NAME, None
+            )  # Remove embedding as it's not needed for display
+            receipts.append(data)
+
+        return receipts
+    except Exception as e:
+        return f"Error filtering receipts: {str(e)}"
+
+
+@tool
+def search_receipts_by_natural_language_query(query: str, limit: int = 5) -> list:
+    """
+    Search for receipts based on natural language query.
+    Uses vector embeddings to find receipts with content most similar to the query.
+
+    Args:
+        query: The search text (e.g., "coffee", "dinner", "groceries")
+        limit: Maximum number of results to return (default: 5)
+
+    Returns:
+        A list of most relevant receipt data matching the query
+    """
+    try:
+        # Generate embedding for the query text
+        result = GENAI_CLIENT.models.embed_content(
+            model="text-embedding-004", contents=query
+        )
+        query_embedding = result.embeddings[0].values
+
+        vector_query = COLLECTION.find_nearest(
+            vector_field=EMBEDDING_FIELD_NAME,
+            query_vector=Vector(query_embedding),
+            distance_measure=DistanceMeasure.EUCLIDEAN,
+            limit=5,
+        )
+
+        # Execute the query and collect results
+        receipts = []
+        for doc in vector_query.stream():
+            data = doc.to_dict()
+            data.pop(
+                EMBEDDING_FIELD_NAME, None
+            )  # Remove embedding as it's not needed for display
+            receipts.append(data)
+
+        return receipts
+    except Exception as e:
+        return f"Error searching receipts: {str(e)}"
 
 
 def get_receipt_data_by_image_id(image_id: str) -> dict:
@@ -125,7 +240,6 @@ def get_receipt_data_by_image_id(image_id: str) -> dict:
             - store_name: The name of the store.
             - transaction_time: The time of purchase in UTC.
             - total_amount: The total amount spent.
-            - currency: The currency of the transaction.
             - receipt_description: A detailed description of the receipt contains the items.
     """
     try:
@@ -140,7 +254,7 @@ def get_receipt_data_by_image_id(image_id: str) -> dict:
 
         # Get the first matching document
         doc_data = docs[0].to_dict()
-        doc_data.pop("embedding", None)
+        doc_data.pop(EMBEDDING_FIELD_NAME, None)
 
         return doc_data
     except Exception as e:
