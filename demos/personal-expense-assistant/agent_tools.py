@@ -127,7 +127,6 @@ def search_receipts_by_metadata_filter(
     end_time: datetime.datetime,
     min_total_amount: float = None,
     max_total_amount: float = None,
-    store_name: str = None,
 ) -> list:
     """
     Filter receipts by metadata within a specific time range and optionally by amount.
@@ -137,7 +136,6 @@ def search_receipts_by_metadata_filter(
         end_time: The end datetime for the filter (inclusive) - REQUIRED
         min_total_amount: The minimum total amount for the filter (inclusive) - OPTIONAL
         max_total_amount: The maximum total amount for the filter (inclusive) - OPTIONAL
-        store_name: The store name (exact match) for the filter - OPTIONAL
 
     Returns:
         A list of receipt data matching all applied filters
@@ -162,9 +160,6 @@ def search_receipts_by_metadata_filter(
 
         if max_total_amount is not None:
             filters.append(FieldFilter("total_amount", "<=", max_total_amount))
-
-        if store_name is not None:
-            filters.append(FieldFilter("store_name", "==", store_name))
 
         # Apply the filters
         composite_filter = And(filters=filters)
