@@ -120,7 +120,7 @@ if __name__ == "__main__":
         description="This assistant can help you to store receipts data, find receipts, and track your expenses during certain period.",
         type="messages",
         multimodal=True,
-        textbox=gr.MultimodalTextbox(file_count="multiple", file_types=["image"]),
+        textbox=gr.MultimodalTextbox(file_types=["image"]),
     )
 
     demo.launch(

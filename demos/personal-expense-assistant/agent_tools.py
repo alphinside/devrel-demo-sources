@@ -1,6 +1,7 @@
 import datetime
 from google.cloud import firestore
 from google.cloud.firestore_v1.vector import Vector
+from google.cloud.firestore_v1 import FieldFilter
 from settings import get_settings
 from google import genai
 from smolagents import tool
@@ -9,7 +10,7 @@ SETTINGS = get_settings()
 DB_CLIENT = firestore.Client(
     project=SETTINGS.GCLOUD_PROJECT_ID
 )  # Will use "(default)" database
-COLLECTION = DB_CLIENT.collection("receipts")
+COLLECTION = DB_CLIENT.collection("personal-expense-assistant-receipts")
 GENAI_CLIENT = genai.Client(
     vertexai=True, location=SETTINGS.GCLOUD_LOCATION, project=SETTINGS.GCLOUD_PROJECT_ID
 )
@@ -87,11 +88,13 @@ def get_receipt_data_by_image_id(image_id: str) -> str:
     """
     try:
         # Query the receipts collection for documents with matching receipt_id (image_id)
-        query = COLLECTION.where("receipt_id", "==", image_id).limit(1)
+        query = COLLECTION.where(
+            filter=FieldFilter("receipt_id", "==", image_id)
+        ).limit(1)
         docs = list(query.stream())
 
         if not docs:
-            return f"No receipt found with ID: {image_id}"
+            raise ValueError(f"No receipt found with ID: {image_id}")
 
         # Get the first matching document
         doc_data = docs[0].to_dict()
@@ -104,6 +107,8 @@ def get_receipt_data_by_image_id(image_id: str) -> str:
         Amount: {doc_data.get("total_amount", "N/A")} {doc_data.get("currency", "N/A")}
         Description: {doc_data.get("receipt_description", "N/A")}
         """
+
+        print(formatted_data)
 
         return formatted_data
     except Exception as e:
