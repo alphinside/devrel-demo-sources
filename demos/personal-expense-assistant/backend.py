@@ -7,8 +7,8 @@ from typing import List, Optional, Tuple
 from pydantic import BaseModel
 from PIL import Image
 import io
+import hashlib
 from agent_tools import store_receipt_data
-import uuid
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
 
@@ -18,17 +18,22 @@ litellm.vertex_location = settings.VERTEXAI_LOCATION
 
 
 # System prompt template for the expense processing agent
-EXPENSE_PROCESSING_PROMPT = """
-You are a Personal Expense Assistant designed to help users track expenses,
-analyze receipts, and manage their financial records.
+EXPENSE_ASSISTANT_PROMPT = """
+You are a helpful Personal Expense Assistant designed to help users track expenses,
+analyze receipts, and manage their financial records. You always 
+speak in Bahasa Indonesia.
 
 IMPORTANT INFORMATION ABOUT IMAGES:
-- When a user sends an image of a receipt, 
+- When a user recent message contains images of receipts, 
   it will appear in the conversation as a placeholder like 
-  [IMAGE-POSITION 0-ID <uuid>], [IMAGE-POSITION 1-ID <uuid>], etc.
+  [IMAGE-POSITION 0-ID <hash-id>], [IMAGE-POSITION 1-ID <hash-id>], etc.
+- However if receipt images are provided in the conversation history, 
+  it will appear in the conversation as a placeholder in the format of
+  [IMAGE-ID <hash-id>], as the image data will not be provided directly to you.
+  You will need to use tool to fetch the receipt content using the hash-id.
 - These placeholders correspond to images in an array that you can analyze.
-- For example, [IMAGE-POSITION 0-ID <uuid>] refers to the first image (index 0) in the images array.
-  where <uuid> is the unique identifier of the image.
+- Image data placeholder [IMAGE-POSITION 0-ID <hash-id>] refers to the first image (index 0) in the images data provided.
+  where <hash-id> is the unique identifier of the image.
 
 When analyzing receipt images, extract and organize the following information 
 when available:
@@ -50,13 +55,22 @@ If the user asks questions about their spending or receipts but
 hasn't provided the necessary information yet, politely ask for 
 clarification or request they upload relevant receipt images.
 
+If previous receipt image (identified by hash-id) is already stored, DO NOT store again.
+
+NEVER expose the receipt image hash id to the user.
+
 Always be helpful, concise, and focus on providing accurate 
 financial information based on the receipts provided.
 
 Conversation history so far:
 
 {history}
-Now take approriate action and respond to the user
+
+Recent user message:
+
+{recent_message}
+
+Now take appropriate action and respond to the user
 """
 
 
@@ -99,9 +113,11 @@ class ChatRequest(BaseModel):
 
     Attributes:
         chat_history: List of messages in the conversation.
+        recent_message: The last message sent by the user.
     """
 
     chat_history: List[Message]
+    recent_message: LastUserMessage
 
 
 class ChatResponse(BaseModel):
@@ -116,47 +132,108 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
 
 
-def reformat_chat_history(history: List[Message]) -> Tuple[str, List[Image.Image]]:
+def _process_image_data(
+    serialized_image: str, position: int = None
+) -> Tuple[str, Image.Image | None]:
+    """Process image data and return placeholder and optionally the PIL image.
+
+    Args:
+        serialized_image: Base64 encoded image data
+        position: Position index for the image, if provided uses IMAGE-POSITION format
+
+    Returns:
+        Tuple containing:
+            - Image placeholder string
+            - PIL Image object, if position is provided else None
+    """
+    image_data = base64.b64decode(serialized_image)
+    image_hash = hashlib.sha256(image_data).hexdigest()[:12]
+
+    # Create the appropriate placeholder based on whether position is provided
+    pil_image = None
+    if position is not None:
+        placeholder = f"[IMAGE-POSITION {position}-ID {image_hash}]"
+        pil_image = Image.open(io.BytesIO(image_data))
+    else:
+        placeholder = f"[IMAGE-ID {image_hash}]"
+
+    return placeholder, pil_image
+
+
+def reformat_chat_history(history: List[Message]) -> str:
     """Reformats chat history into a specific string format and extracts images.
+    Image data in chat history will not be provided again for efficiency.
+
+    Example result after reformatting:
+
+    User: Hello, I need help with my expenses
+    Assistant: I'd be happy to help with your expenses. You can upload receipts or ask questions.
+    User: [IMAGE-ID some-hash-id-here]
+    User: please process and store this receipt
 
     Args:
         history: List of chat messages with role and content.
 
     Returns:
-        Tuple containing:
-            - Formatted chat history as a string
-            - List of PIL Image objects extracted from the history
+        str: Formatted chat history as a string
     """
     formatted_history = ""
-    images = []
 
     for msg in history:
         role = msg.role
         content = msg.content
 
-        if role == "user":
-            # Check if content is a list (contains files/images)
-            if isinstance(content, list):
-                for item in content:
-                    # This is an image
-                    image_id = str(uuid.uuid4())
-                    image_position = f"[IMAGE-POSITION {len(images)}-ID {image_id}]"
+        if isinstance(content, list):
+            for data in content:
+                # Process this image without returning image data
+                placeholder, _ = _process_image_data(data.serialized_image)
+                formatted_history += f"{role.title()}: {placeholder}\n"
+        else:
+            formatted_history += f"{role.title()}: {content}\n"
 
-                    # Convert base64 to PIL Image
-                    image_data = base64.b64decode(item.serialized_image)
-                    img = Image.open(io.BytesIO(image_data))
-                    images.append(img)
+    return formatted_history
 
-                    # TODO: Store image in database or storage with relevant ID
 
-                    formatted_history += f"User: {image_position}\n"
-            else:
-                # Simple text message
-                formatted_history += f"User: {content}\n"
-        elif role == "assistant":
-            formatted_history += f"Assistant: {content}\n"
+def reformat_recent_message(message: LastUserMessage) -> Tuple[str, List[Image.Image]]:
+    """Reformats a single user message into a specific string format and extracts images.
+    Similar to reformat_chat_history but for a LastUserMessage object. Additionally image
+    data will be provided in this part hence the image placeholder will contain the image
+    data position in the list.
 
-    return formatted_history, images
+    Example result after reformatting:
+
+    User: [IMAGE-POSITION 0-ID some-hash-id-here]
+    User: Hello, I need help with my expenses
+
+    Args:
+        message: The most recent user message
+
+    Returns:
+        Tuple containing:
+            - Formatted message as a string
+            - List of PIL Image objects extracted from the message
+    """
+    formatted_message = ""
+    images = []
+
+    # Handle image files if present
+    for data in message.files:
+        # Process this image and get the image data
+        placeholder, img = _process_image_data(
+            data.serialized_image, position=len(images)
+        )
+
+        # Add image to the list
+        if img:
+            images.append(img)
+
+        formatted_message += f"User: {placeholder}\n"
+
+    # Handle text content if present
+    if message.text:
+        formatted_message += f"User: {message.text}\n"
+
+    return formatted_message, images
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -180,18 +257,26 @@ async def chat(
         agent = CodeAgent(tools=[store_receipt_data], model=model)
 
         # Reformat chat history and extract images
-        formatted_history, images = reformat_chat_history(request.chat_history)
+        formatted_history = reformat_chat_history(request.chat_history)
+
+        # Reformat recent message and extract images
+        formatted_recent_message, recent_images = reformat_recent_message(
+            request.recent_message
+        )
 
         # Generate response
         result = agent.run(
-            EXPENSE_PROCESSING_PROMPT.format(history=formatted_history),
-            images=images,
+            EXPENSE_ASSISTANT_PROMPT.format(
+                history=formatted_history, recent_message=formatted_recent_message
+            ),
+            images=recent_images,
         )
 
         print(f"Generated response: {result}")
 
         return ChatResponse(response=result)
     except Exception as e:
+        print(f"Error in processing: {str(e)}")
         return ChatResponse(
             response="", error=f"Error in generating response: {str(e)}"
         )

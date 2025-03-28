@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     VERTEXAI_LOCATION: str
     VERTEXAI_PROJECT_ID: str
     BACKEND_URL: str = "http://localhost:8081/chat"
+    STORAGE_BUCKET_NAME: str = "personal-expense-assistant-receipts"
 
     model_config = SettingsConfigDict(
         yaml_file="settings.yaml", yaml_file_encoding="utf-8"
