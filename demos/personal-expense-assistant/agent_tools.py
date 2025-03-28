@@ -180,17 +180,20 @@ def search_receipts_by_metadata_filter(
 
 
 @tool
-def search_receipts_by_natural_language_query(query: str, limit: int = 5) -> list:
+def search_relevant_receipts_by_natural_language_query(
+    query: str, limit: int = 5
+) -> list:
     """
-    Search for receipts based on natural language query.
-    Uses vector embeddings to find receipts with content most similar to the query.
+    Search for receipts with content most similar to the query. Results from this tool are
+    not final, they are only suggestions. Need additional verification and check with the user
+    query to confirm the results.
 
     Args:
         query: The search text (e.g., "coffee", "dinner", "groceries")
         limit: Maximum number of results to return (default: 5)
 
     Returns:
-        A list of most relevant receipt data matching the query
+        A list of most relevant receipt data matching the query, need to be processed further
     """
     try:
         # Generate embedding for the query text

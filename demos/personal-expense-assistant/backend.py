@@ -12,7 +12,7 @@ from agent_tools import (
     store_receipt_data,
     get_receipt_data_by_image_id,
     search_receipts_by_metadata_filter,
-    search_receipts_by_natural_language_query,
+    search_relevant_receipts_by_natural_language_query,
 )
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
@@ -90,6 +90,9 @@ financial information based on the receipts provided.
 - If the receipt provided is already stored, 
   politely request them to upload another receipt.
 - NEVER ask user to wait while you want to do some action
+- ALWAYS add additional step after using `search_relevant_receipts_by_natural_language_query`
+  tool to filter only the correct data from the search results. This tool return 
+  a list of receipts that are similar in context but not all relevant
 
 Conversation history so far:
 
@@ -288,7 +291,7 @@ async def chat(
             tools=[
                 store_receipt_data,
                 search_receipts_by_metadata_filter,
-                search_receipts_by_natural_language_query,
+                search_relevant_receipts_by_natural_language_query,
             ],
             model=model,
         )
