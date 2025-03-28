@@ -30,7 +30,30 @@ IMPORTANT INFORMATION ABOUT IMAGES:
 - However if receipt images are provided in the conversation history, 
   it will appear in the conversation as a placeholder in the format of
   [IMAGE-ID <hash-id>], as the image data will not be provided directly to you.
-  You will need to use tool to fetch the receipt content using the hash-id.
+  The parsed data (if available) will be provided under these placeholder string 
+  as JSON object
+  
+  E.g.:
+  User: [IMAGE-ID <hash-id>]
+  {{
+      "store_name": "Store Name",
+      "transaction_time": "2023-01-01T00:00:00Z",
+      "total_amount": 100.00,
+      "currency": "USD",
+      "items": [
+          {{
+              "name": "Item 1",
+              "price": 10.00,
+              "quantity": 1
+          }},
+          {{
+              "name": "Item 2",
+              "price": 20.00,
+              "quantity": 2
+          }}
+      ]
+  }}
+  
 - These placeholders correspond to images in an array (that is not visible to the user) that you can analyze.
 - Image data placeholder [IMAGE-POSITION 0-ID <hash-id>] refers to the first image (index 0) in the images data provided.
   where <hash-id> is the unique identifier of the image.
@@ -61,6 +84,7 @@ financial information based on the receipts provided.
   conversation history if any
 - If the receipt provided is already stored, 
   politely request them to upload another receipt.
+- NEVER ask user to wait while you want to do some action
 
 Conversation history so far:
 
@@ -155,7 +179,8 @@ def _process_image_data(
         placeholder = f"[IMAGE-POSITION {position}-ID {image_hash}]"
         pil_image = Image.open(io.BytesIO(image_data))
     else:
-        placeholder = f"[IMAGE-ID {image_hash}]"
+        image_parsed_data = get_receipt_data_by_image_id(image_hash)
+        placeholder = f"[IMAGE-ID {image_hash}]\n{image_parsed_data}"
 
     return placeholder, pil_image
 
@@ -254,9 +279,7 @@ async def chat(
 
         # Initialize the model and agent
         model = LiteLLMModel(model_id="vertex_ai/gemini-2.0-flash-001", temperature=0)
-        agent = CodeAgent(
-            tools=[store_receipt_data, get_receipt_data_by_image_id], model=model
-        )
+        agent = CodeAgent(tools=[store_receipt_data], model=model)
 
         # Reformat chat history and extract images
         formatted_history = reformat_chat_history(request.chat_history)
