@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from PIL import Image
 import io
 import hashlib
-from agent_tools import store_receipt_data
+from agent_tools import store_receipt_data, get_receipt_data_by_image_id
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
 
@@ -257,7 +257,9 @@ async def chat(
 
         # Initialize the model and agent
         model = LiteLLMModel(model_id="vertex_ai/gemini-2.0-flash-001", temperature=0)
-        agent = CodeAgent(tools=[store_receipt_data], model=model)
+        agent = CodeAgent(
+            tools=[store_receipt_data, get_receipt_data_by_image_id], model=model
+        )
 
         # Reformat chat history and extract images
         formatted_history = reformat_chat_history(request.chat_history)

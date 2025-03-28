@@ -74,7 +74,7 @@ def store_receipt_data(
 
 
 @tool
-def get_receipt_data(image_id: str) -> str:
+def get_receipt_data_by_image_id(image_id: str) -> str:
     """
     Retrieve receipt data from the database using the image_id.
 
