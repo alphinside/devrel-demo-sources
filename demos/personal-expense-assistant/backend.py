@@ -2,13 +2,14 @@ import base64
 from fastapi import FastAPI, Body
 from smolagents import LiteLLMModel, CodeAgent
 import litellm
-from settings import get_settings
-from typing import List, Optional, Tuple
-from pydantic import BaseModel
 from PIL import Image
 import io
 import hashlib
 import os
+from google.cloud import storage
+from settings import get_settings
+from typing import List, Optional, Tuple
+from pydantic import BaseModel
 from agent_tools import (
     store_receipt_data,
     get_receipt_data_by_image_id,
@@ -21,6 +22,9 @@ app = FastAPI(title="Personal Expense Assistant Backend Service")
 SETTINGS = get_settings()
 litellm.vertex_project = SETTINGS.GCLOUD_PROJECT_ID
 litellm.vertex_location = SETTINGS.GCLOUD_LOCATION
+GCS_BUCKET_CLIENT = storage.Client(project=SETTINGS.GCLOUD_PROJECT_ID).get_bucket(
+    "personal-expense-assistant-receipts"
+)
 
 
 class ImageData(BaseModel):
@@ -81,10 +85,10 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
 
 
-def _process_image_data(
-    serialized_image: str, position: int = None
-) -> Tuple[str, Image.Image | None]:
+def process_image_data(serialized_image: str, position: int) -> Tuple[str, Image.Image]:
     """Process image data and return placeholder and optionally the PIL image.
+    Also in case of position is provided, the image will be processed and
+    stored in the storage.
 
     Args:
         serialized_image: Base64 encoded image data
@@ -98,16 +102,69 @@ def _process_image_data(
     image_data = base64.b64decode(serialized_image)
     image_hash = hashlib.sha256(image_data).hexdigest()[:12]
 
-    # Create the appropriate placeholder based on whether position is provided
-    pil_image = None
-    if position is not None:
-        placeholder = f"[IMAGE-POSITION {position}-ID {image_hash}]"
-        pil_image = Image.open(io.BytesIO(image_data))
-    else:
-        image_parsed_data = get_receipt_data_by_image_id(image_hash)
-        placeholder = f"[IMAGE-ID {image_hash}]\n{image_parsed_data}"
+    # Store in Google Cloud Storage
+    store_image_in_gcs(image_data, image_hash)
+
+    # Create the image data string placeholder
+    placeholder = f"[IMAGE-POSITION {position}-ID {image_hash}]"
+    pil_image = Image.open(io.BytesIO(image_data))
 
     return placeholder, pil_image
+
+
+def store_image_in_gcs(image_data: bytes, image_hash: str) -> None:
+    """
+    Stores image data in Google Cloud Storage.
+
+    Args:
+        image_data: Raw binary image data
+        image_hash: Generated hash identifier for the image
+
+    Returns:
+        None
+    """
+    try:
+        # Format filename and create blob object
+        blob_name = f"{image_hash}.jpg"
+        blob = GCS_BUCKET_CLIENT.blob(blob_name)
+
+        # Check if blob already exists to avoid redundant uploads
+        if blob.exists():
+            print(f"Image {image_hash}.jpg already exists in GCS, skipping upload")
+            return
+
+        # Convert image to JPEG format using PIL
+        img = Image.open(io.BytesIO(image_data))
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        jpeg_buffer = io.BytesIO()
+        img.save(jpeg_buffer, format="JPEG")
+        jpeg_data = jpeg_buffer.getvalue()
+
+        # Create a new blob and upload the JPEG data
+        blob.upload_from_string(jpeg_data, content_type="image/jpeg")
+        print(f"Successfully uploaded image {image_hash}.jpg to GCS")
+    except Exception as e:
+        print(f"Error storing image in GCS: {e}")
+
+
+def substitute_image_with_parsed_data(serialized_image: str) -> str:
+    """Retrieves parsed data for an image from the database using its hash identifier.
+    Then returns a placeholder string containing the image ID and parsed data.
+
+    Args:
+        serialized_image: Base64 encoded image data
+
+    Returns:
+        str: A formatted placeholder string containing the image ID and parsed data
+             in the format "[IMAGE-ID {hash}]\n{parsed_data}"
+    """
+    image_data = base64.b64decode(serialized_image)
+    image_hash = hashlib.sha256(image_data).hexdigest()[:12]
+
+    image_parsed_data = get_receipt_data_by_image_id(image_hash)
+    placeholder = f"[IMAGE-ID {image_hash}]\n{image_parsed_data}"
+    return placeholder
 
 
 def reformat_chat_history(history: List[Message]) -> str:
@@ -136,7 +193,7 @@ def reformat_chat_history(history: List[Message]) -> str:
         if isinstance(content, list):
             for data in content:
                 # Process this image without returning image data
-                placeholder, _ = _process_image_data(data.serialized_image)
+                placeholder = substitute_image_with_parsed_data(data.serialized_image)
                 formatted_history += f"{role.title()}: {placeholder}\n"
         else:
             formatted_history += f"{role.title()}: {content}\n"
@@ -144,7 +201,9 @@ def reformat_chat_history(history: List[Message]) -> str:
     return formatted_history
 
 
-def reformat_recent_message(message: LastUserMessage) -> Tuple[str, List[Image.Image]]:
+def reformat_recent_message_and_process_images(
+    message: LastUserMessage,
+) -> Tuple[str, List[Image.Image]]:
     """Reformats a single user message into a specific string format and extracts images.
     Similar to reformat_chat_history but for a LastUserMessage object. Additionally image
     data will be provided in this part hence the image placeholder will contain the image
@@ -169,7 +228,7 @@ def reformat_recent_message(message: LastUserMessage) -> Tuple[str, List[Image.I
     # Handle image files if present
     for data in message.files:
         # Process this image and get the image data
-        placeholder, img = _process_image_data(
+        placeholder, img = process_image_data(
             data.serialized_image, position=len(images)
         )
 
@@ -231,8 +290,8 @@ async def chat(
         formatted_history = reformat_chat_history(request.chat_history)
 
         # Reformat recent message and extract images
-        formatted_recent_message, recent_images = reformat_recent_message(
-            request.recent_message
+        formatted_recent_message, recent_images = (
+            reformat_recent_message_and_process_images(request.recent_message)
         )
 
         # Generate response

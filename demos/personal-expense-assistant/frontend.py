@@ -3,40 +3,8 @@ import requests
 import base64
 from typing import List, Dict, Any
 from settings import get_settings
-from pathlib import Path
-
 
 SETTINGS = get_settings()
-IMAGE_SUFFIX_MIME_MAP = {
-    ".png": "image/png",
-    ".jpg": "image/jpeg",
-    ".jpeg": "image/jpeg",
-    ".webp": "image/webp",
-}
-
-
-def get_mime_type(filepath: str) -> str:
-    """Get the MIME type for a file based on its extension.
-
-    Args:
-        filepath: Path to the file.
-
-    Returns:
-        str: The MIME type of the file.
-
-    Raises:
-        ValueError: If the file type is not supported.
-    """
-    filepath = Path(filepath)
-    suffix = filepath.suffix
-
-    # modify ".jpg" suffix to ".jpeg" to unify the mime type
-    suffix = suffix if suffix != ".jpg" else ".jpeg"
-
-    if suffix in IMAGE_SUFFIX_MIME_MAP:
-        return IMAGE_SUFFIX_MIME_MAP[suffix]
-    else:
-        raise ValueError(f"Unsupported file type: {suffix}")
 
 
 def encode_image_to_base64(image_path: str) -> Dict[str, str]:
@@ -48,11 +16,10 @@ def encode_image_to_base64(image_path: str) -> Dict[str, str]:
     Returns:
         Dict[str, str]: Dictionary with 'serialized_image' key.
     """
-    mime_type = get_mime_type(image_path)
     with open(image_path, "rb") as file:
         base64_data = base64.b64encode(file.read()).decode("utf-8")
 
-    return {"serialized_image": base64_data, "mime_type": mime_type}
+    return {"serialized_image": base64_data}
 
 
 def get_response_from_llm_backend(
