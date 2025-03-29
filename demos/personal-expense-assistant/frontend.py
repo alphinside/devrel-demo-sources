@@ -3,6 +3,7 @@ import requests
 import base64
 from typing import List, Dict, Any
 from settings import get_settings
+from PIL import Image
 
 SETTINGS = get_settings()
 
@@ -20,6 +21,26 @@ def encode_image_to_base64(image_path: str) -> Dict[str, str]:
         base64_data = base64.b64encode(file.read()).decode("utf-8")
 
     return {"serialized_image": base64_data}
+
+
+def decode_base64_to_image(base64_data: str) -> Image:
+    """Decode a base64 string to a PIL Image.
+
+    Args:
+        base64_data: Base64 encoded string of the image.
+
+    Returns:
+        PIL.Image.Image: Decoded image.
+    """
+    import io
+    from PIL import Image
+
+    # Decode the base64 string and convert to PIL Image
+    image_data = base64.b64decode(base64_data)
+    image_buffer = io.BytesIO(image_data)
+    image = Image.open(image_buffer)
+
+    return image
 
 
 def get_response_from_llm_backend(
@@ -42,7 +63,7 @@ def get_response_from_llm_backend(
     #        And each image (in the history) need to be sent as base64
     formatted_history = []
     for msg in history:
-        if msg["role"] == "user" and not isinstance(msg["content"], str):
+        if not isinstance(msg["content"], str):
             # For file content in history, convert file paths to base64 with MIME type
             file_contents = [
                 encode_image_to_base64(file_path) for file_path in msg["content"]
@@ -75,7 +96,13 @@ def get_response_from_llm_backend(
         if error := result.get("error"):
             return f"Error: {error}"
 
-        return result.get("response", "No response received from backend")
+        chat_responses = [result.get("response", "No response received from backend")]
+
+        if result.get("attachments", []):
+            for attachment in result["attachments"]:
+                chat_responses.append(gr.Image(decode_base64_to_image(attachment)))
+
+        return chat_responses
     except requests.exceptions.RequestException as e:
         return f"Error connecting to backend service: {str(e)}"
 

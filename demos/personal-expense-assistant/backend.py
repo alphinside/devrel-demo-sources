@@ -1,4 +1,5 @@
 import base64
+import json
 from fastapi import FastAPI, Body
 from smolagents import LiteLLMModel, CodeAgent
 import litellm
@@ -6,7 +7,6 @@ from PIL import Image
 import io
 import hashlib
 import os
-from google.cloud import storage
 from settings import get_settings
 from typing import List, Optional, Tuple
 from pydantic import BaseModel
@@ -16,22 +16,21 @@ from agent_tools import (
     search_receipts_by_metadata_filter,
     search_relevant_receipts_by_natural_language_query,
 )
+from utils import store_image_in_gcs, download_image_from_gcs
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
 
 SETTINGS = get_settings()
 litellm.vertex_project = SETTINGS.GCLOUD_PROJECT_ID
 litellm.vertex_location = SETTINGS.GCLOUD_LOCATION
-GCS_BUCKET_CLIENT = storage.Client(project=SETTINGS.GCLOUD_PROJECT_ID).get_bucket(
-    "personal-expense-assistant-receipts"
-)
 
 
 class ImageData(BaseModel):
-    """Model for a file with base64 data and MIME type.
+    """Model for a file with base64 data and filename.
 
     Attributes:
         serialized_image: Base64 encoded string of the image content.
+        filename: Optional filename of the image.
     """
 
     serialized_image: str
@@ -82,6 +81,7 @@ class ChatResponse(BaseModel):
     """
 
     response: str
+    attachments: list[str] = []
     error: Optional[str] = None
 
 
@@ -110,42 +110,6 @@ def process_image_data(serialized_image: str, position: int) -> Tuple[str, Image
     pil_image = Image.open(io.BytesIO(image_data))
 
     return placeholder, pil_image
-
-
-def store_image_in_gcs(image_data: bytes, image_hash: str) -> None:
-    """
-    Stores image data in Google Cloud Storage.
-
-    Args:
-        image_data: Raw binary image data
-        image_hash: Generated hash identifier for the image
-
-    Returns:
-        None
-    """
-    try:
-        # Format filename and create blob object
-        blob_name = f"{image_hash}.jpg"
-        blob = GCS_BUCKET_CLIENT.blob(blob_name)
-
-        # Check if blob already exists to avoid redundant uploads
-        if blob.exists():
-            print(f"Image {image_hash}.jpg already exists in GCS, skipping upload")
-            return
-
-        # Convert image to JPEG format using PIL
-        img = Image.open(io.BytesIO(image_data))
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        jpeg_buffer = io.BytesIO()
-        img.save(jpeg_buffer, format="JPEG")
-        jpeg_data = jpeg_buffer.getvalue()
-
-        # Create a new blob and upload the JPEG data
-        blob.upload_from_string(jpeg_data, content_type="image/jpeg")
-        print(f"Successfully uploaded image {image_hash}.jpg to GCS")
-    except Exception as e:
-        print(f"Error storing image in GCS: {e}")
 
 
 def substitute_image_with_parsed_data(serialized_image: str) -> str:
@@ -284,12 +248,11 @@ async def chat(
                 search_relevant_receipts_by_natural_language_query,
             ],
             model=model,
+            additional_authorized_imports=["json"],
         )
 
-        # Reformat chat history and extract images
+        # Reformat chat history and replace image data with string placeholder
         formatted_history = reformat_chat_history(request.chat_history)
-
-        # Reformat recent message and extract images
         formatted_recent_message, recent_images = (
             reformat_recent_message_and_process_images(request.recent_message)
         )
@@ -304,9 +267,20 @@ async def chat(
             max_steps=5,
         )
 
-        print(f"Generated response: {result}")
+        response = ChatResponse(**json.loads(result))
 
-        return ChatResponse(response=result)
+        if response.attachments:
+            # Download images from GCS and replace hash IDs with base64 data
+            base64_attachments = []
+            for image_hash_id in response.attachments:
+                base64_data = download_image_from_gcs(image_hash_id)
+                if base64_data:
+                    base64_attachments.append(base64_data)
+
+            # Replace attachments with base64 data
+            response.attachments = base64_attachments
+
+        return response
     except Exception as e:
         print(f"Error in processing: {str(e)}")
         return ChatResponse(
