@@ -62,7 +62,7 @@ def get_response_from_llm_backend(
     #        And each image (in the history) need to be sent as base64
     formatted_history = []
     for msg in history:
-        if isinstance(msg["content"], list):
+        if isinstance(msg["content"], tuple):
             # For file content in history, convert file paths to base64 with MIME type
             file_contents = [
                 encode_image_to_base64(file_path) for file_path in msg["content"]
@@ -71,12 +71,8 @@ def get_response_from_llm_backend(
         elif isinstance(msg["content"], str):
             formatted_history.append({"role": msg["role"], "content": msg["content"]})
         elif isinstance(msg["content"], gr.Image):
-            formatted_history.append(
-                {
-                    "role": msg["role"],
-                    "content": [encode_image_to_base64(msg["content"].value["path"])],
-                }
-            )
+            # Skip image content in history which provided by assistant response
+            pass
         else:
             raise ValueError(
                 f"Unsupported message content type: {type(msg['content'])}"

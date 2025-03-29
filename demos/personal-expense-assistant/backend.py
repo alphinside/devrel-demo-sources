@@ -274,7 +274,6 @@ async def chat(
                 history=formatted_history, recent_message=formatted_recent_message
             ),
             images=recent_images,
-            max_steps=5,
         )
 
         formatted_result = (
