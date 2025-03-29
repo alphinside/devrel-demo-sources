@@ -100,14 +100,24 @@ def process_image_data(serialized_image: str, position: int) -> Tuple[str, Image
             - PIL Image object, if position is provided else None
     """
     image_data = base64.b64decode(serialized_image)
-    image_hash = hashlib.sha256(image_data).hexdigest()[:12]
+
+    # Convert image to JPEG format using PIL
+    img = Image.open(io.BytesIO(image_data))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    jpeg_buffer = io.BytesIO()
+    img.save(jpeg_buffer, format="JPEG")
+    jpeg_data = jpeg_buffer.getvalue()
+
+    # Image hash built from standardization of every image into JPEG format
+    image_hash = hashlib.sha256(jpeg_data).hexdigest()[:12]
 
     # Store in Google Cloud Storage
-    store_image_in_gcs(image_data, image_hash)
+    store_image_in_gcs(jpeg_data, image_hash)
 
     # Create the image data string placeholder
     placeholder = f"[IMAGE-POSITION {position}-ID {image_hash}]"
-    pil_image = Image.open(io.BytesIO(image_data))
+    pil_image = Image.open(io.BytesIO(jpeg_data))
 
     return placeholder, pil_image
 
@@ -267,7 +277,10 @@ async def chat(
             max_steps=5,
         )
 
-        response = ChatResponse(**json.loads(result))
+        formatted_result = (
+            json.loads(result) if not isinstance(result, dict) else result
+        )
+        response = ChatResponse(**formatted_result)
 
         if response.attachments:
             # Download images from GCS and replace hash IDs with base64 data

@@ -1,7 +1,5 @@
 from google.cloud import storage
 from settings import get_settings
-from PIL import Image
-import io
 import base64
 import tempfile
 from pathlib import Path
@@ -37,16 +35,8 @@ def store_image_in_gcs(image_data: bytes, image_hash: str) -> None:
             print(f"Image {image_hash}.jpg already exists in GCS, skipping upload")
             return
 
-        # Convert image to JPEG format using PIL
-        img = Image.open(io.BytesIO(image_data))
-        if img.mode != "RGB":
-            img = img.convert("RGB")
-        jpeg_buffer = io.BytesIO()
-        img.save(jpeg_buffer, format="JPEG")
-        jpeg_data = jpeg_buffer.getvalue()
-
         # Create a new blob and upload the JPEG data
-        blob.upload_from_string(jpeg_data, content_type="image/jpeg")
+        blob.upload_from_string(image_data, content_type="image/jpeg")
         print(f"Successfully uploaded image {image_hash}.jpg to GCS")
     except Exception as e:
         print(f"Error storing image in GCS: {e}")

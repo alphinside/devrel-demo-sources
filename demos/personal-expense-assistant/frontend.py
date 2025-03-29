@@ -4,6 +4,7 @@ import base64
 from typing import List, Dict, Any
 from settings import get_settings
 from PIL import Image
+import io
 
 SETTINGS = get_settings()
 
@@ -32,8 +33,6 @@ def decode_base64_to_image(base64_data: str) -> Image:
     Returns:
         PIL.Image.Image: Decoded image.
     """
-    import io
-    from PIL import Image
 
     # Decode the base64 string and convert to PIL Image
     image_data = base64.b64decode(base64_data)
@@ -63,14 +62,25 @@ def get_response_from_llm_backend(
     #        And each image (in the history) need to be sent as base64
     formatted_history = []
     for msg in history:
-        if not isinstance(msg["content"], str):
+        if isinstance(msg["content"], list):
             # For file content in history, convert file paths to base64 with MIME type
             file_contents = [
                 encode_image_to_base64(file_path) for file_path in msg["content"]
             ]
             formatted_history.append({"role": msg["role"], "content": file_contents})
-        else:
+        elif isinstance(msg["content"], str):
             formatted_history.append({"role": msg["role"], "content": msg["content"]})
+        elif isinstance(msg["content"], gr.Image):
+            formatted_history.append(
+                {
+                    "role": msg["role"],
+                    "content": [encode_image_to_base64(msg["content"].value["path"])],
+                }
+            )
+        else:
+            raise ValueError(
+                f"Unsupported message content type: {type(msg['content'])}"
+            )
 
     # Extract files and convert to base64
     image_data_with_mime = []
