@@ -8,17 +8,21 @@ from PIL import Image
 import io
 from utils import extract_attachment_ids_from_response
 
+
 SETTINGS = get_settings()
 
 
 def encode_image_to_base64_with_webp_standardization(image_path: str) -> Dict[str, str]:
-    """Encode a file to base64 string and standardize to WebP.
+    """Encode a file to base64 string and standardize to WebP format.
+
+    Reads an image file, converts it to WebP format for standardization,
+    and returns both the base64-encoded image data and a hash ID for reference.
 
     Args:
         image_path: Path to the image file to encode.
 
     Returns:
-        Dict[str, str]: Dictionary with 'serialized_image', 'image_hash_id' keys.
+        Dict with 'serialized_image' (base64 string) and 'image_hash_id' (hash string) keys.
     """
     # Read the raw image file
     with open(image_path, "rb") as file:
@@ -45,14 +49,17 @@ def encode_image_to_base64_with_webp_standardization(image_path: str) -> Dict[st
     }
 
 
-def decode_base64_to_image(base64_data: str) -> Image:
+def decode_base64_to_image(base64_data: str) -> Image.Image:
     """Decode a base64 string to PIL Image.
+
+    Converts a base64-encoded image string back to a PIL Image object
+    that can be displayed or processed further.
 
     Args:
         base64_data: Base64 encoded string of the image.
 
     Returns:
-        Image: PIL Image object of the decoded image.
+        PIL Image object of the decoded image.
     """
     # Decode the base64 string and convert to PIL Image
     image_data = base64.b64decode(base64_data)
@@ -62,24 +69,19 @@ def decode_base64_to_image(base64_data: str) -> Image:
     return image
 
 
-def get_response_from_llm_backend(
-    message: Dict[str, Any],
-    history: List[Dict[str, Any]],
-) -> str:
-    """Send the message and history to the backend and get a response.
+def format_conversation_history(history: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Format the conversation history for API consumption.
+
+    Processes each message in the conversation history to ensure images are
+    properly referenced by their hash IDs for efficiency. This handles different
+    types of content (text, images) and extracts attachment IDs from assistant responses.
 
     Args:
-        message: Dictionary containing the current message with 'text' and optional 'files' keys.
         history: List of previous message dictionaries in the conversation.
 
     Returns:
-        str: The text response from the backend service.
+        Formatted history list ready for API consumption.
     """
-
-    # Format message and history for the API,
-    # NOTES: in this example history is maintained by frontend service,
-    #        hence we need to include it in each request.
-    #        And each image in the history will be replaced with image_hash_id for efficiency
     formatted_history = []
     for msg in history:
         # Image uploaded by user will be in tuple
@@ -119,6 +121,33 @@ def get_response_from_llm_backend(
                 f"Unsupported message content type: {type(msg['content'])}"
             )
 
+    return formatted_history
+
+
+def get_response_from_llm_backend(
+    message: Dict[str, Any],
+    history: List[Dict[str, Any]],
+) -> List[str | gr.Image]:
+    """Send the message and history to the backend and get a response.
+
+    Formats the conversation history and current message (including any attached images),
+    sends them to the backend service, and processes the response which may include
+    both text and image content.
+
+    Args:
+        message: Dictionary containing the current message with 'text' and optional 'files' keys.
+        history: List of previous message dictionaries in the conversation.
+
+    Returns:
+        List containing text response and any image attachments from the backend service.
+    """
+
+    # Format history for the API
+    # NOTES: in this example history is maintained by frontend service,
+    #        hence we need to include it in each request.
+    #        And each image in the history will be replaced with image_hash_id for efficiency
+    formatted_history = format_conversation_history(history)
+
     # Extract files and convert to base64
     image_data_with_mime = []
     if uploaded_files := message.get("files", []):
@@ -143,7 +172,7 @@ def get_response_from_llm_backend(
 
         result = response.json()
         if error := result.get("error"):
-            return f"Error: {error}"
+            return [f"Error: {error}"]
 
         chat_responses = [result.get("response", "No response received from backend")]
 
@@ -154,7 +183,7 @@ def get_response_from_llm_backend(
 
         return chat_responses
     except requests.exceptions.RequestException as e:
-        return f"Error connecting to backend service: {str(e)}"
+        return [f"Error connecting to backend service: {str(e)}"]
 
 
 if __name__ == "__main__":
