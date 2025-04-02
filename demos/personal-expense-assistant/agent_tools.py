@@ -1,4 +1,5 @@
 import datetime
+from typing import Dict, List, Any
 from google.cloud import firestore
 from google.cloud.firestore_v1.vector import Vector
 from google.cloud.firestore_v1 import FieldFilter
@@ -19,8 +20,7 @@ GENAI_CLIENT = genai.Client(
 EMBEDDING_DIMENSION = 768
 EMBEDDING_FIELD_NAME = "embedding"
 INVALID_ITEMS_FORMAT_ERR = """
-Invalid items format. Must be a list of dictionaries with 'name', 'price', and 'quantity' keys."
-"""
+Invalid items format. Must be a list of dictionaries with 'name', 'price', and 'quantity' keys."""
 RECEIPT_DESC_FORMAT = """
 Store Name: {store_name}
 Transaction Time: {transaction_time}
@@ -38,24 +38,24 @@ def store_receipt_data(
     store_name: str,
     transaction_time: str,
     total_amount: float,
-    purchased_items: list[dict[str, str]],
+    purchased_items: List[Dict[str, Any]],
     currency: str = "IDR",
 ) -> str:
     """
-    This is a tool that stores receipt data in a database.
+    Store receipt data in the database.
 
     Args:
         image_id: The unique identifier of the image. For example IMAGE-POSITION 0-ID 12345,
                   the ID of the image is 12345.
         store_name: The name of the store.
-        transaction_time: The time of purchase, in ISO format of "YYYY-MM-DDTHH:MM:SS.ssssssZ"
+        transaction_time: The time of purchase, in ISO format of "YYYY-MM-DDTHH:MM:SS.ssssssZ".
         total_amount: The total amount spent.
-        purchased_items: A list of items purchased with their prices. Items object must have the following keys:
+        purchased_items: A list of items purchased with their prices. Each item must have:
             - name: The name of the item.
             - price: The price of the item.
             - quantity: The quantity of the item. Optional, default to 1.
 
-            E.g.:
+            Example:
             [
                 {
                     "name": "Item 1",
@@ -69,6 +69,9 @@ def store_receipt_data(
             ]
         currency: The currency of the transaction, can be derived from the store location.
             If unsure, default is "IDR".
+
+    Returns:
+        A success message with the receipt ID or an error message if the operation failed.
     """
     try:
         # In case of it provide full image placeholder, extract the id string
@@ -141,20 +144,21 @@ def store_receipt_data(
 def search_receipts_by_metadata_filter(
     start_time: str,
     end_time: str,
-    min_total_amount: float = None,
-    max_total_amount: float = None,
+    min_total_amount: float | None = None,
+    max_total_amount: float | None = None,
 ) -> str:
     """
     Filter receipts by metadata within a specific time range and optionally by amount.
 
     Args:
-        start_time: The start datetime for the filter (in ISO format) - REQUIRED
-        end_time: The end datetime for the filter (in ISO format) - REQUIRED
-        min_total_amount: The minimum total amount for the filter (inclusive) - OPTIONAL
-        max_total_amount: The maximum total amount for the filter (inclusive) - OPTIONAL
+        start_time: The start datetime for the filter (in ISO format) - REQUIRED.
+        end_time: The end datetime for the filter (in ISO format) - REQUIRED.
+        min_total_amount: The minimum total amount for the filter (inclusive) - OPTIONAL.
+        max_total_amount: The maximum total amount for the filter (inclusive) - OPTIONAL.
 
     Returns:
-        A string containing the list of receipt data matching all applied filters
+        A string containing the list of receipt data matching all applied filters,
+        or an error message if the search failed.
     """
     try:
         # Validate start and end times
@@ -207,16 +211,18 @@ def search_relevant_receipts_by_natural_language_query(
     query: str, limit: int = 5
 ) -> str:
     """
-    Search for receipts with content most similar to the query. Results from this tool are
-    not final, they are only suggestions. Need additional verification and check with the user
-    query to confirm the results.
+    Search for receipts with content most similar to the query using vector search.
+
+    Results from this tool are not final, they are only suggestions. Additional
+    verification and comparison with the user query is needed to confirm the results.
 
     Args:
-        query: The search text (e.g., "coffee", "dinner", "groceries")
-        limit: Maximum number of results to return (default: 5)
+        query: The search text (e.g., "coffee", "dinner", "groceries").
+        limit: Maximum number of results to return (default: 5).
 
     Returns:
-        A string containing the list of contextually relevant receipt data
+        A string containing the list of contextually relevant receipt data,
+        or an error message if the search failed.
     """
     try:
         # Generate embedding for the query text
@@ -246,7 +252,7 @@ def search_relevant_receipts_by_natural_language_query(
         return f"Error searching receipts: {str(e)}"
 
 
-def get_receipt_data_by_image_id(image_id: str) -> dict:
+def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
     """
     Retrieve receipt data from the database using the image_id.
 
@@ -255,13 +261,15 @@ def get_receipt_data_by_image_id(image_id: str) -> dict:
                 [IMAGE-ID 12345] or [IMAGE-POSITION 0-ID 12345], the ID to use is 12345.
 
     Returns:
-        A dictionary containing the receipt data or an error message if not found.
-        With the following keys:
+        A dictionary containing the receipt data with the following keys:
             - receipt_id: The unique identifier of the receipt image.
             - store_name: The name of the store.
             - transaction_time: The time of purchase in UTC.
             - total_amount: The total amount spent.
-            - receipt_description: A detailed description of the receipt contains the items.
+            - currency: The currency of the transaction.
+            - purchased_items: List of items purchased with their details.
+
+        Returns an empty dictionary if no receipt is found, or an error message string if the operation failed.
     """
     try:
         # Query the receipts collection for documents with matching receipt_id (image_id)
