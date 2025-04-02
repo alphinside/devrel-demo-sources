@@ -1,22 +1,24 @@
 import base64
-import json
+from typing import List, Optional, Tuple
 from fastapi import FastAPI, Body
-from smolagents import LiteLLMModel, CodeAgent
-import litellm
-from PIL import Image
+from pydantic import BaseModel
 import io
-import hashlib
+from PIL import Image
 import os
 from settings import get_settings
-from typing import List, Optional, Tuple
-from pydantic import BaseModel
 from agent_tools import (
     store_receipt_data,
     get_receipt_data_by_image_id,
     search_receipts_by_metadata_filter,
     search_relevant_receipts_by_natural_language_query,
 )
-from utils import store_image_in_gcs, download_image_from_gcs
+from utils import (
+    store_image_in_gcs,
+    download_image_from_gcs,
+    extract_attachment_ids_from_response,
+)
+from smolagents import LiteLLMModel, CodeAgent
+import litellm
 
 app = FastAPI(title="Personal Expense Assistant Backend Service")
 
@@ -33,8 +35,8 @@ class ImageData(BaseModel):
         image_hash_id: Hash identifier of the image.
     """
 
-    serialized_image: str
     image_hash_id: str
+    serialized_image: str | None = None
 
 
 class Message(BaseModel):
@@ -82,7 +84,7 @@ class ChatResponse(BaseModel):
     """
 
     response: str
-    attachments: list[str] = []
+    attachments: list[ImageData] = []
     error: Optional[str] = None
 
 
@@ -114,22 +116,19 @@ def process_image_data(
     return placeholder, pil_image
 
 
-def substitute_image_with_parsed_data(serialized_image: str) -> str:
+def reformat_image_hash_id_to_placeholder(image_hash_id: str) -> str:
     """Retrieves parsed data for an image from the database using its hash identifier.
     Then returns a placeholder string containing the image ID and parsed data.
 
     Args:
-        serialized_image: Base64 encoded image data
+        image_hash_id: Hash identifier of the image
 
     Returns:
         str: A formatted placeholder string containing the image ID and parsed data
              in the format "[IMAGE-ID {hash}]\n{parsed_data}"
     """
-    image_data = base64.b64decode(serialized_image)
-    image_hash = hashlib.sha256(image_data).hexdigest()[:12]
-
-    image_parsed_data = get_receipt_data_by_image_id(image_hash)
-    placeholder = f"[IMAGE-ID {image_hash}]\n{image_parsed_data}"
+    image_parsed_data = get_receipt_data_by_image_id(image_hash_id)
+    placeholder = f"[IMAGE-ID {image_hash_id}]\n{image_parsed_data}"
     return placeholder
 
 
@@ -159,7 +158,7 @@ def reformat_chat_history(history: List[Message]) -> str:
         if isinstance(content, list):
             for data in content:
                 # Process this image without returning image data
-                placeholder = substitute_image_with_parsed_data(data.serialized_image)
+                placeholder = reformat_image_hash_id_to_placeholder(data.image_hash_id)
                 formatted_history += f"{role.title()}: {placeholder}\n"
         else:
             formatted_history += f"{role.title()}: {content}\n"
@@ -250,6 +249,7 @@ async def chat(
                 search_relevant_receipts_by_natural_language_query,
             ],
             model=model,
+            planning_interval=5,
             additional_authorized_imports=["json"],
         )
 
@@ -266,25 +266,21 @@ async def chat(
                 history=formatted_history, recent_message=formatted_recent_message
             ),
             images=recent_images,
+            max_steps=10,
         )
 
-        formatted_result = (
-            json.loads(result) if not isinstance(result, dict) else result
-        )
-        response = ChatResponse(**formatted_result)
+        base64_attachments = []
+        attachment_ids = extract_attachment_ids_from_response(result)
 
-        if response.attachments:
-            # Download images from GCS and replace hash IDs with base64 data
-            base64_attachments = []
-            for image_hash_id in response.attachments:
-                base64_data = download_image_from_gcs(image_hash_id)
-                if base64_data:
-                    base64_attachments.append(base64_data)
+        # Download images from GCS and replace hash IDs with base64 data
+        for image_hash_id in attachment_ids:
+            base64_data = download_image_from_gcs(image_hash_id)
+            if base64_data:
+                base64_attachments.append(
+                    ImageData(serialized_image=base64_data, image_hash_id=image_hash_id)
+                )
 
-            # Replace attachments with base64 data
-            response.attachments = base64_attachments
-
-        return response
+        return ChatResponse(response=result, attachments=base64_attachments)
     except Exception as e:
         print(f"Error in processing: {str(e)}")
         return ChatResponse(

@@ -21,6 +21,15 @@ EMBEDDING_FIELD_NAME = "embedding"
 INVALID_ITEMS_FORMAT_ERR = """
 Invalid items format. Must be a list of dictionaries with 'name', 'price', and 'quantity' keys."
 """
+RECEIPT_DESC_FORMAT = """
+Store Name: {store_name}
+Transaction Time: {transaction_time}
+Total Amount: {total_amount}
+Currency: {currency}
+Purchased Items:
+{purchased_items}
+Receipt Image ID: {receipt_id}
+"""
 
 
 @tool
@@ -29,7 +38,7 @@ def store_receipt_data(
     store_name: str,
     transaction_time: str,
     total_amount: float,
-    item_list: list[dict[str, str]],
+    purchased_items: list[dict[str, str]],
     currency: str = "IDR",
 ) -> str:
     """
@@ -41,7 +50,7 @@ def store_receipt_data(
         store_name: The name of the store.
         transaction_time: The time of purchase, in ISO format of "YYYY-MM-DDTHH:MM:SS.ssssssZ"
         total_amount: The total amount spent.
-        item_list: A list of items purchased with their prices. Items object must have the following keys:
+        purchased_items: A list of items purchased with their prices. Items object must have the following keys:
             - name: The name of the item.
             - price: The price of the item.
             - quantity: The quantity of the item. Optional, default to 1.
@@ -64,7 +73,7 @@ def store_receipt_data(
     try:
         # In case of it provide full image placeholder, extract the id string
         if image_id.startswith("[IMAGE-"):
-            image_id = image_id.split("ID ")[1].split("]")[0]
+            image_id = image_id.split("ID ")[1].split("]")[1]
 
         # Check if the receipt already exists
         doc = get_receipt_data_by_image_id(image_id)
@@ -82,10 +91,10 @@ def store_receipt_data(
                 )
 
         # Validate items format
-        if not isinstance(item_list, list):
+        if not isinstance(purchased_items, list):
             raise ValueError(INVALID_ITEMS_FORMAT_ERR)
 
-        for _item in item_list:
+        for _item in purchased_items:
             if (
                 not isinstance(_item, dict)
                 or "name" not in _item
@@ -97,16 +106,16 @@ def store_receipt_data(
                 _item["quantity"] = 1
 
         # Create a combined text from all receipt information for better embedding
-        receipt_full_info = f"""
-        Store: {store_name}
-        Transaction Time: {transaction_time}
-        Amount: {total_amount}
-        Currency: {currency}
-        Items: {item_list}
-        """
-
         result = GENAI_CLIENT.models.embed_content(
-            model="text-embedding-004", contents=receipt_full_info
+            model="text-embedding-004",
+            contents=RECEIPT_DESC_FORMAT.format(
+                store_name=store_name,
+                transaction_time=transaction_time,
+                total_amount=total_amount,
+                currency=currency,
+                purchased_items=purchased_items,
+                receipt_id=image_id,
+            ),
         )
 
         embedding = result.embeddings[0].values
@@ -117,7 +126,7 @@ def store_receipt_data(
             "transaction_time": transaction_time,
             "total_amount": total_amount,
             "currency": currency,
-            "item_list": item_list,
+            "purchased_items": purchased_items,
             EMBEDDING_FIELD_NAME: Vector(embedding),
         }
 
@@ -134,7 +143,7 @@ def search_receipts_by_metadata_filter(
     end_time: str,
     min_total_amount: float = None,
     max_total_amount: float = None,
-) -> list:
+) -> str:
     """
     Filter receipts by metadata within a specific time range and optionally by amount.
 
@@ -145,7 +154,7 @@ def search_receipts_by_metadata_filter(
         max_total_amount: The maximum total amount for the filter (inclusive) - OPTIONAL
 
     Returns:
-        A list of receipt data matching all applied filters
+        A string containing the list of receipt data matching all applied filters
     """
     try:
         # Validate start and end times
@@ -179,15 +188,16 @@ def search_receipts_by_metadata_filter(
         query = query.where(filter=composite_filter)
 
         # Execute the query and collect results
-        receipts = []
+        search_result_description = "Search by Metadata Results:\n"
         for doc in query.stream():
             data = doc.to_dict()
             data.pop(
                 EMBEDDING_FIELD_NAME, None
             )  # Remove embedding as it's not needed for display
-            receipts.append(data)
 
-        return receipts
+            search_result_description += f"\n{RECEIPT_DESC_FORMAT.format(**data)}"
+
+        return search_result_description
     except Exception as e:
         return f"Error filtering receipts: {str(e)}"
 
@@ -195,7 +205,7 @@ def search_receipts_by_metadata_filter(
 @tool
 def search_relevant_receipts_by_natural_language_query(
     query: str, limit: int = 5
-) -> list:
+) -> str:
     """
     Search for receipts with content most similar to the query. Results from this tool are
     not final, they are only suggestions. Need additional verification and check with the user
@@ -206,7 +216,7 @@ def search_relevant_receipts_by_natural_language_query(
         limit: Maximum number of results to return (default: 5)
 
     Returns:
-        A list of most relevant receipt data matching the query, need to be processed further
+        A string containing the list of contextually relevant receipt data
     """
     try:
         # Generate embedding for the query text
@@ -223,15 +233,15 @@ def search_relevant_receipts_by_natural_language_query(
         )
 
         # Execute the query and collect results
-        receipts = []
+        search_result_description = "Search by Contextual Relevance Results:\n"
         for doc in vector_query.stream():
             data = doc.to_dict()
             data.pop(
                 EMBEDDING_FIELD_NAME, None
             )  # Remove embedding as it's not needed for display
-            receipts.append(data)
+            search_result_description += f"\n{RECEIPT_DESC_FORMAT.format(**data)}"
 
-        return receipts
+        return search_result_description
     except Exception as e:
         return f"Error searching receipts: {str(e)}"
 

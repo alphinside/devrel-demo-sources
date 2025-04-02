@@ -6,12 +6,13 @@ from typing import List, Dict, Any
 from settings import get_settings
 from PIL import Image
 import io
+from utils import extract_attachment_ids_from_response
 
 SETTINGS = get_settings()
 
 
-def encode_image_to_base64_with_jpeg_standardization(image_path: str) -> Dict[str, str]:
-    """Encode a file to base64 string and standardize to JPG.
+def encode_image_to_base64_with_webp_standardization(image_path: str) -> Dict[str, str]:
+    """Encode a file to base64 string and standardize to WebP.
 
     Args:
         image_path: Path to the image file to encode.
@@ -23,22 +24,20 @@ def encode_image_to_base64_with_jpeg_standardization(image_path: str) -> Dict[st
     with open(image_path, "rb") as file:
         image_content = file.read()
 
-    # Generate hash from original image content
-    image_hash_id = hashlib.sha256(image_content).hexdigest()[:12]
-
-    # Convert to standardized JPG format using PIL
+    # Convert to standardized WebP format using PIL
     img = Image.open(io.BytesIO(image_content))
     if img.mode != "RGB":
         img = img.convert("RGB")
 
-    # Save as JPG in memory
-    jpg_buffer = io.BytesIO()
-    img.save(jpg_buffer, format="JPEG", quality=90)
-    jpg_buffer.seek(0)
-    jpg_data = jpg_buffer.getvalue()
+    # Save as WebP in memory
+    webp_buffer = io.BytesIO()
+    img.save(webp_buffer, format="WEBP", quality=90)
+    webp_buffer.seek(0)
+    webp_data = webp_buffer.getvalue()
 
     # Base64 encode the standardized image
-    base64_data = base64.b64encode(jpg_data).decode("utf-8")
+    base64_data = base64.b64encode(webp_data).decode("utf-8")
+    image_hash_id = hashlib.sha256(webp_data).hexdigest()[:12]
 
     return {
         "serialized_image": base64_data,
@@ -47,15 +46,14 @@ def encode_image_to_base64_with_jpeg_standardization(image_path: str) -> Dict[st
 
 
 def decode_base64_to_image(base64_data: str) -> Image:
-    """Decode a base64 string to a PIL Image.
+    """Decode a base64 string to PIL Image.
 
     Args:
         base64_data: Base64 encoded string of the image.
 
     Returns:
-        PIL.Image.Image: Decoded image.
+        Image: PIL Image object of the decoded image.
     """
-
     # Decode the base64 string and convert to PIL Image
     image_data = base64.b64decode(base64_data)
     image_buffer = io.BytesIO(image_data)
@@ -81,21 +79,41 @@ def get_response_from_llm_backend(
     # Format message and history for the API,
     # NOTES: in this example history is maintained by frontend service,
     #        hence we need to include it in each request.
-    #        And each image (in the history) need to be sent as base64
+    #        And each image in the history will be replaced with image_hash_id for efficiency
     formatted_history = []
     for msg in history:
+        # Image uploaded by user will be in tuple
         if isinstance(msg["content"], tuple):
-            # For file content in history, convert file paths to base64 with MIME type
             file_contents = [
-                encode_image_to_base64_with_jpeg_standardization(file_path)
+                {
+                    "image_hash_id": encode_image_to_base64_with_webp_standardization(
+                        file_path
+                    )["image_hash_id"]
+                }
                 for file_path in msg["content"]
             ]
             formatted_history.append({"role": msg["role"], "content": file_contents})
+        # Image from assistant response will be in gr.Image
+        elif isinstance(msg["content"], gr.Image):
+            # Image ID from assistant response will be extracted from assistant string response
+            # inside <attachments> tag
+            pass
         elif isinstance(msg["content"], str):
             formatted_history.append({"role": msg["role"], "content": msg["content"]})
-        elif isinstance(msg["content"], gr.Image):
-            # Skip image content in history which provided by assistant response
-            pass
+
+            # Extract Image ID from assistant response
+            attachment_ids = extract_attachment_ids_from_response(msg["content"])
+            if attachment_ids:
+                formatted_history.append(
+                    {
+                        "role": msg["role"],
+                        "content": [
+                            {"image_hash_id": attachment_id}
+                            for attachment_id in attachment_ids
+                        ],
+                    }
+                )
+
         else:
             raise ValueError(
                 f"Unsupported message content type: {type(msg['content'])}"
@@ -106,7 +124,7 @@ def get_response_from_llm_backend(
     if uploaded_files := message.get("files", []):
         for file_path in uploaded_files:
             image_data_with_mime.append(
-                encode_image_to_base64_with_jpeg_standardization(file_path)
+                encode_image_to_base64_with_webp_standardization(file_path)
             )
 
     # Prepare the request payload
@@ -131,7 +149,8 @@ def get_response_from_llm_backend(
 
         if result.get("attachments", []):
             for attachment in result["attachments"]:
-                chat_responses.append(gr.Image(decode_base64_to_image(attachment)))
+                image_data = attachment["serialized_image"]
+                chat_responses.append(gr.Image(decode_base64_to_image(image_data)))
 
         return chat_responses
     except requests.exceptions.RequestException as e:
