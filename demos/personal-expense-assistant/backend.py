@@ -28,11 +28,11 @@ litellm.vertex_location = SETTINGS.GCLOUD_LOCATION
 
 
 class ImageData(BaseModel):
-    """Model for a file with base64 data and filename.
+    """Model for image data with hash identifier.
 
     Attributes:
-        serialized_image: Base64 encoded string of the image content.
         image_hash_id: Hash identifier of the image.
+        serialized_image: Optional Base64 encoded string of the image content.
     """
 
     image_hash_id: str
@@ -56,7 +56,7 @@ class LastUserMessage(BaseModel):
 
     Attributes:
         text: The text content of the message.
-        files: List of image data objects containing base64 data.
+        files: List of image data objects containing image information.
     """
 
     text: str
@@ -80,11 +80,12 @@ class ChatResponse(BaseModel):
 
     Attributes:
         response: The text response from the model.
+        attachments: List of image data to be displayed to the user.
         error: Optional error message if something went wrong.
     """
 
     response: str
-    attachments: list[ImageData] = []
+    attachments: List[ImageData] = []
     error: Optional[str] = None
 
 
@@ -92,17 +93,19 @@ def process_image_data(
     serialized_image: str, image_hash_id: str, position: int
 ) -> Tuple[str, Image.Image]:
     """Process image data and return placeholder and the PIL image.
-    The image will be processed and stored in the storage.
+
+    Decodes base64 image data, stores it in cloud storage, and creates a placeholder
+    string for the conversation history.
 
     Args:
-        serialized_image: Base64 encoded image data
-        image_hash_id: Hash identifier of the image
-        position: Position index for the image
+        serialized_image: Base64 encoded image data.
+        image_hash_id: Hash identifier of the image.
+        position: Position index for the image in the current message.
 
     Returns:
         Tuple containing:
-            - Image placeholder string
-            - PIL Image object
+            - Image placeholder string formatted as [IMAGE-POSITION {position}-ID {image_hash_id}].
+            - PIL Image object of the decoded image.
     """
     image_data = base64.b64decode(serialized_image)
 
@@ -117,15 +120,17 @@ def process_image_data(
 
 
 def reformat_image_hash_id_to_placeholder(image_hash_id: str) -> str:
-    """Retrieves parsed data for an image from the database using its hash identifier.
-    Then returns a placeholder string containing the image ID and parsed data.
+    """Create a placeholder string with image ID and parsed data.
+
+    Retrieves parsed data for an image from the database using its hash identifier,
+    then returns a placeholder string containing the image ID and parsed data.
 
     Args:
-        image_hash_id: Hash identifier of the image
+        image_hash_id: Hash identifier of the image.
 
     Returns:
         str: A formatted placeholder string containing the image ID and parsed data
-             in the format "[IMAGE-ID {hash}]\n{parsed_data}"
+             in the format "[IMAGE-ID {hash_id}]\n{parsed_data}".
     """
     image_parsed_data = get_receipt_data_by_image_id(image_hash_id)
     placeholder = f"[IMAGE-ID {image_hash_id}]\n{image_parsed_data}"
@@ -133,21 +138,25 @@ def reformat_image_hash_id_to_placeholder(image_hash_id: str) -> str:
 
 
 def reformat_chat_history(history: List[Message]) -> str:
-    """Reformats chat history into a specific string format and extracts images.
-    Image data in chat history will not be provided again for efficiency.
+    """Reformat chat history into a specific string format.
+
+    Converts the structured chat history into a plain text format for the LLM.
+    Image data in chat history will be replaced with placeholders that include
+    the parsed receipt data.
 
     Example result after reformatting:
 
     User: Hello, I need help with my expenses
     Assistant: I'd be happy to help with your expenses. You can upload receipts or ask questions.
     User: [IMAGE-ID some-hash-id-here]
+    {parsed_receipt_data}
     User: please process and store this receipt
 
     Args:
         history: List of chat messages with role and content.
 
     Returns:
-        str: Formatted chat history as a string
+        str: Formatted chat history as a string for LLM processing.
     """
     formatted_history = ""
 
@@ -169,10 +178,11 @@ def reformat_chat_history(history: List[Message]) -> str:
 def reformat_recent_message_and_process_images(
     message: LastUserMessage,
 ) -> Tuple[str, List[Image.Image]]:
-    """Reformats a single user message into a specific string format and extracts images.
-    Similar to reformat_chat_history but for a LastUserMessage object. Additionally image
-    data will be provided in this part hence the image placeholder will contain the image
-    data position in the list.
+    """Reformat the recent user message and process any included images.
+
+    Similar to reformat_chat_history but for a LastUserMessage object. For the recent
+    message, the image data is available and will be processed, stored, and converted
+    to placeholder strings with position information.
 
     Example result after reformatting:
 
@@ -180,12 +190,12 @@ def reformat_recent_message_and_process_images(
     User: Hello, I need help with my expenses
 
     Args:
-        message: The most recent user message
+        message: The most recent user message with text and possibly image files.
 
     Returns:
         Tuple containing:
-            - Formatted message as a string
-            - List of PIL Image objects extracted from the message
+            - Formatted message as a string for LLM processing.
+            - List of PIL Image objects extracted from the message for visual processing.
     """
     formatted_message = ""
     images = []
@@ -211,11 +221,10 @@ def reformat_recent_message_and_process_images(
 
 
 def load_prompt_template() -> str:
-    """
-    Load the prompt template from task_prompt.md
+    """Load the prompt template from task_prompt.md file.
 
     Returns:
-        str: The prompt template string
+        str: The prompt template string used for LLM conversation.
     """
     current_dir = os.path.dirname(os.path.abspath(__file__))
     prompt_path = os.path.join(current_dir, "task_prompt.md")
@@ -228,16 +237,20 @@ def load_prompt_template() -> str:
 async def chat(
     request: ChatRequest = Body(...),
 ) -> ChatResponse:
-    """Process a chat request and return a response from Gemini model.
+    """Process a chat request and return a response from the language model.
+
+    This endpoint handles the core chat functionality, processing user messages and images,
+    formatting them for the LLM, running the conversation agent, and extracting any
+    attachments from the response.
 
     Args:
-        request: The chat request containing message and history.
+        request: The chat request containing message history and the recent message.
 
     Returns:
-        ChatResponse: The model's response to the chat request.
+        ChatResponse: The model's response containing text and optional attachments.
     """
     try:
-        # Convert message history to Gemini `history` format
+        # Log the request
         print(f"Received request: {request}")
 
         # Initialize the model and agent
@@ -269,6 +282,7 @@ async def chat(
             max_steps=10,
         )
 
+        # Extract and process any attachments in the response
         base64_attachments = []
         attachment_ids = extract_attachment_ids_from_response(result)
 
