@@ -30,10 +30,11 @@ class ImageData(BaseModel):
 
     Attributes:
         serialized_image: Base64 encoded string of the image content.
-        filename: Optional filename of the image.
+        image_hash_id: Hash identifier of the image.
     """
 
     serialized_image: str
+    image_hash_id: str
 
 
 class Message(BaseModel):
@@ -85,39 +86,30 @@ class ChatResponse(BaseModel):
     error: Optional[str] = None
 
 
-def process_image_data(serialized_image: str, position: int) -> Tuple[str, Image.Image]:
-    """Process image data and return placeholder and optionally the PIL image.
-    Also in case of position is provided, the image will be processed and
-    stored in the storage.
+def process_image_data(
+    serialized_image: str, image_hash_id: str, position: int
+) -> Tuple[str, Image.Image]:
+    """Process image data and return placeholder and the PIL image.
+    The image will be processed and stored in the storage.
 
     Args:
         serialized_image: Base64 encoded image data
-        position: Position index for the image, if provided uses IMAGE-POSITION format
+        image_hash_id: Hash identifier of the image
+        position: Position index for the image
 
     Returns:
         Tuple containing:
             - Image placeholder string
-            - PIL Image object, if position is provided else None
+            - PIL Image object
     """
     image_data = base64.b64decode(serialized_image)
 
-    # Convert image to JPEG format using PIL
-    img = Image.open(io.BytesIO(image_data))
-    if img.mode != "RGB":
-        img = img.convert("RGB")
-    jpeg_buffer = io.BytesIO()
-    img.save(jpeg_buffer, format="JPEG")
-    jpeg_data = jpeg_buffer.getvalue()
-
-    # Image hash built from standardization of every image into JPEG format
-    image_hash = hashlib.sha256(jpeg_data).hexdigest()[:12]
-
     # Store in Google Cloud Storage
-    store_image_in_gcs(jpeg_data, image_hash)
+    store_image_in_gcs(image_data, image_hash_id)
 
     # Create the image data string placeholder
-    placeholder = f"[IMAGE-POSITION {position}-ID {image_hash}]"
-    pil_image = Image.open(io.BytesIO(jpeg_data))
+    placeholder = f"[IMAGE-POSITION {position}-ID {image_hash_id}]"
+    pil_image = Image.open(io.BytesIO(image_data))
 
     return placeholder, pil_image
 
@@ -201,9 +193,9 @@ def reformat_recent_message_and_process_images(
 
     # Handle image files if present
     for data in message.files:
-        # Process this image and get the image data
+        # Process the image and convert to string placeholder
         placeholder, img = process_image_data(
-            data.serialized_image, position=len(images)
+            data.serialized_image, data.image_hash_id, position=len(images)
         )
 
         # Add image to the list

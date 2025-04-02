@@ -1,6 +1,7 @@
 import gradio as gr
 import requests
 import base64
+import hashlib
 from typing import List, Dict, Any
 from settings import get_settings
 from PIL import Image
@@ -9,19 +10,40 @@ import io
 SETTINGS = get_settings()
 
 
-def encode_image_to_base64(image_path: str) -> Dict[str, str]:
-    """Encode a file to base64 string.
+def encode_image_to_base64_with_jpeg_standardization(image_path: str) -> Dict[str, str]:
+    """Encode a file to base64 string and standardize to JPG.
 
     Args:
         image_path: Path to the image file to encode.
 
     Returns:
-        Dict[str, str]: Dictionary with 'serialized_image' key.
+        Dict[str, str]: Dictionary with 'serialized_image', 'image_hash_id' keys.
     """
+    # Read the raw image file
     with open(image_path, "rb") as file:
-        base64_data = base64.b64encode(file.read()).decode("utf-8")
+        image_content = file.read()
 
-    return {"serialized_image": base64_data}
+    # Generate hash from original image content
+    image_hash_id = hashlib.sha256(image_content).hexdigest()[:12]
+
+    # Convert to standardized JPG format using PIL
+    img = Image.open(io.BytesIO(image_content))
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    # Save as JPG in memory
+    jpg_buffer = io.BytesIO()
+    img.save(jpg_buffer, format="JPEG", quality=90)
+    jpg_buffer.seek(0)
+    jpg_data = jpg_buffer.getvalue()
+
+    # Base64 encode the standardized image
+    base64_data = base64.b64encode(jpg_data).decode("utf-8")
+
+    return {
+        "serialized_image": base64_data,
+        "image_hash_id": image_hash_id,
+    }
 
 
 def decode_base64_to_image(base64_data: str) -> Image:
@@ -65,7 +87,8 @@ def get_response_from_llm_backend(
         if isinstance(msg["content"], tuple):
             # For file content in history, convert file paths to base64 with MIME type
             file_contents = [
-                encode_image_to_base64(file_path) for file_path in msg["content"]
+                encode_image_to_base64_with_jpeg_standardization(file_path)
+                for file_path in msg["content"]
             ]
             formatted_history.append({"role": msg["role"], "content": file_contents})
         elif isinstance(msg["content"], str):
@@ -82,7 +105,9 @@ def get_response_from_llm_backend(
     image_data_with_mime = []
     if uploaded_files := message.get("files", []):
         for file_path in uploaded_files:
-            image_data_with_mime.append(encode_image_to_base64(file_path))
+            image_data_with_mime.append(
+                encode_image_to_base64_with_jpeg_standardization(file_path)
+            )
 
     # Prepare the request payload
     payload = {

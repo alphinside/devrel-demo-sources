@@ -76,7 +76,6 @@ Rules:
     }}
     ```
 - NEVER expose the receipt image hash id inside the "response" field content.
-- If attachments is not empty, ALWAYS include the attachment details in the "response" field content.
 
 Conversation history so far:
 

@@ -29,7 +29,7 @@ def store_receipt_data(
     store_name: str,
     transaction_time: str,
     total_amount: float,
-    items: list[dict[str, str]],
+    item_list: list[dict[str, str]],
     currency: str = "IDR",
 ) -> str:
     """
@@ -41,7 +41,7 @@ def store_receipt_data(
         store_name: The name of the store.
         transaction_time: The time of purchase, in ISO format of "YYYY-MM-DDTHH:MM:SS.ssssssZ"
         total_amount: The total amount spent.
-        items: A list of items purchased with their prices. Items object must have the following keys:
+        item_list: A list of items purchased with their prices. Items object must have the following keys:
             - name: The name of the item.
             - price: The price of the item.
             - quantity: The quantity of the item. Optional, default to 1.
@@ -82,15 +82,19 @@ def store_receipt_data(
                 )
 
         # Validate items format
-        if not isinstance(items, list):
+        if not isinstance(item_list, list):
             raise ValueError(INVALID_ITEMS_FORMAT_ERR)
 
-        for item in items:
-            if not isinstance(item, dict) or "name" not in item or "price" not in item:
+        for _item in item_list:
+            if (
+                not isinstance(_item, dict)
+                or "name" not in _item
+                or "price" not in _item
+            ):
                 raise ValueError(INVALID_ITEMS_FORMAT_ERR)
 
-            if "quantity" not in item:
-                item["quantity"] = 1
+            if "quantity" not in _item:
+                _item["quantity"] = 1
 
         # Create a combined text from all receipt information for better embedding
         receipt_full_info = f"""
@@ -98,7 +102,7 @@ def store_receipt_data(
         Transaction Time: {transaction_time}
         Amount: {total_amount}
         Currency: {currency}
-        Items: {items}
+        Items: {item_list}
         """
 
         result = GENAI_CLIENT.models.embed_content(
@@ -113,7 +117,7 @@ def store_receipt_data(
             "transaction_time": transaction_time,
             "total_amount": total_amount,
             "currency": currency,
-            "items": items,
+            "item_list": item_list,
             EMBEDDING_FIELD_NAME: Vector(embedding),
         }
 
