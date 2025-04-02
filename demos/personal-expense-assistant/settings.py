@@ -30,8 +30,10 @@ class Settings(BaseSettings):
     loaded from settings.yaml file and overridable via environment variables.
 
     Attributes:
-        GCLOUD_LOCATION: Google Cloud location
-        GCLOUD_PROJECT_ID: Google Cloud project ID
+        GCLOUD_LOCATION: Google Cloud location for API services.
+        GCLOUD_PROJECT_ID: Google Cloud project identifier.
+        BACKEND_URL: URL for the backend service API endpoint.
+        STORAGE_BUCKET_NAME: Name of the Google Cloud Storage bucket for storing receipts.
     """
 
     GCLOUD_LOCATION: str
@@ -61,14 +63,14 @@ class Settings(BaseSettings):
         3. Constructor-provided values
 
         Args:
-            settings_cls: The Settings class type
-            init_settings: Settings from class initialization
-            env_settings: Settings from environment variables
-            dotenv_settings: Settings from .env file (not used)
-            file_secret_settings: Settings from secrets file (not used)
+            settings_cls: The Settings class type.
+            init_settings: Settings from class initialization.
+            env_settings: Settings from environment variables.
+            dotenv_settings: Settings from .env file (not used).
+            file_secret_settings: Settings from secrets file (not used).
 
         Returns:
-            A tuple of configuration sources in priority order
+            A tuple of configuration sources in priority order.
         """
         return (
             env_settings,  # Environment variables as first priority
@@ -82,9 +84,11 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Create and return a Settings instance with loaded configuration.
 
+    Initializes a Settings object that loads configuration values from
+    environment variables and the YAML configuration file, with environment
+    variables taking precedence.
+
     Returns:
-        A Settings instance containing all application configuration
-        loaded from environment variables, YAML configuration file,
-        and constructor-provided values.
+        A fully configured Settings instance containing all application configuration.
     """
     return Settings()
