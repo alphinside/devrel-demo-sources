@@ -266,6 +266,12 @@ async def chat(
             additional_authorized_imports=["json"],
         )
 
+        # Currently, system prompt modification is not really straightforward
+        agent.prompt_templates["system_prompt"] = (
+            agent.prompt_templates["system_prompt"]
+            + "\nDO NOT generate code block starts with ```tool_code, always use ```py"
+        )
+
         # Reformat chat history and replace image data with string placeholder
         formatted_history = reformat_chat_history(request.chat_history)
         formatted_recent_message, recent_images = (
