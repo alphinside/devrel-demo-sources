@@ -271,20 +271,16 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
 
         Returns an empty dictionary if no receipt is found, or an error message string if the operation failed.
     """
-    try:
-        # Query the receipts collection for documents with matching receipt_id (image_id)
-        query = COLLECTION.where(
-            filter=FieldFilter("receipt_id", "==", image_id)
-        ).limit(1)
-        docs = list(query.stream())
 
-        if not docs:
-            return {}
+    # Query the receipts collection for documents with matching receipt_id (image_id)
+    query = COLLECTION.where(filter=FieldFilter("receipt_id", "==", image_id)).limit(1)
+    docs = list(query.stream())
 
-        # Get the first matching document
-        doc_data = docs[0].to_dict()
-        doc_data.pop(EMBEDDING_FIELD_NAME, None)
+    if not docs:
+        return {}
 
-        return doc_data
-    except Exception as e:
-        return f"Error retrieving receipt: {str(e)}"
+    # Get the first matching document
+    doc_data = docs[0].to_dict()
+    doc_data.pop(EMBEDDING_FIELD_NAME, None)
+
+    return doc_data
