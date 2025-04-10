@@ -270,6 +270,7 @@ async def chat(
         agent.prompt_templates["system_prompt"] = (
             agent.prompt_templates["system_prompt"]
             + "\nDO NOT generate code block starts with ```tool_code, always use ```py"
+            + "\nDO NOT use `*args` or `**kwargs` as function arguments"
         )
 
         # Reformat chat history and replace image data with string placeholder
