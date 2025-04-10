@@ -13,7 +13,7 @@ SETTINGS = get_settings()
 DB_CLIENT = firestore.Client(
     project=SETTINGS.GCLOUD_PROJECT_ID
 )  # Will use "(default)" database
-COLLECTION = DB_CLIENT.collection("personal-expense-assistant-receipts")
+COLLECTION = DB_CLIENT.collection(SETTINGS.DB_COLLECTION_NAME)
 GENAI_CLIENT = genai.Client(
     vertexai=True, location=SETTINGS.GCLOUD_LOCATION, project=SETTINGS.GCLOUD_PROJECT_ID
 )

@@ -1,3 +1,5 @@
 GCLOUD_LOCATION: "us-central1"
 GCLOUD_PROJECT_ID: "your_gcloud_project_id"
 BACKEND_URL: "http://localhost:8081/chat"
+STORAGE_BUCKET_NAME: "personal-expense-assistant-receipts"
+DB_COLLECTION_NAME: "personal-expense-assistant-receipts"
