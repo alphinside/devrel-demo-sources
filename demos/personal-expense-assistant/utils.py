@@ -8,7 +8,7 @@ import re
 SETTINGS = get_settings()
 
 GCS_BUCKET_CLIENT = storage.Client(project=SETTINGS.GCLOUD_PROJECT_ID).get_bucket(
-    "personal-expense-assistant-receipts"
+    SETTINGS.STORAGE_BUCKET_NAME
 )
 # Create a temporary directory for caching if it doesn't exist
 IMAGE_CACHE_DIR = Path(tempfile.gettempdir()) / "personal-expense-assistant-cache"
