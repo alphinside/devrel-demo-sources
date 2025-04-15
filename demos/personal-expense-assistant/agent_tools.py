@@ -45,38 +45,28 @@ def store_receipt_data(
     Store receipt data in the database.
 
     Args:
-        image_id: The unique identifier of the image. For example IMAGE-POSITION 0-ID 12345,
-                  the ID of the image is 12345.
-        store_name: The name of the store.
-        transaction_time: The time of purchase, in ISO format of "YYYY-MM-DDTHH:MM:SS.ssssssZ".
-        total_amount: The total amount spent.
-        purchased_items: A list of items purchased with their prices. Each item must have:
-            - name: The name of the item.
-            - price: The price of the item.
-            - quantity: The quantity of the item. Optional, default to 1.
-
-            Example:
-            [
-                {
-                    "name": "Item 1",
-                    "price": 10000,
-                    "quantity": 2
-                },
-                {
-                    "name": "Item 2",
-                    "price": 20000
-                }
-            ]
-        currency: The currency of the transaction, can be derived from the store location.
+        image_id (str): The unique identifier of the image. For example IMAGE-POSITION 0-ID 12345,
+            the ID of the image is 12345.
+        store_name (str): The name of the store.
+        transaction_time (str): The time of purchase, in ISO format ("YYYY-MM-DDTHH:MM:SS.ssssssZ").
+        total_amount (float): The total amount spent.
+        purchased_items (List[Dict[str, Any]]): A list of items purchased with their prices. Each item must have:
+            - name (str): The name of the item.
+            - price (float): The price of the item.
+            - quantity (int, optional): The quantity of the item. Defaults to 1 if not provided.
+        currency (str, optional): The currency of the transaction, can be derived from the store location.
             If unsure, default is "IDR".
 
     Returns:
-        A success message with the receipt ID or an error message if the operation failed.
+        str: A success message with the receipt ID.
+
+    Raises:
+        Exception: If the operation failed or input is invalid.
     """
     try:
         # In case of it provide full image placeholder, extract the id string
         if image_id.startswith("[IMAGE-"):
-            image_id = image_id.split("ID ")[1].split("]")[1]
+            image_id = image_id.split("ID ")[1].split("]")[0]
 
         # Check if the receipt already exists
         doc = get_receipt_data_by_image_id(image_id)
@@ -86,12 +76,15 @@ def store_receipt_data(
 
         # Validate transaction time
         if not isinstance(transaction_time, str):
-            try:
-                datetime.datetime.fromisoformat(transaction_time.replace("Z", "+00:00"))
-            except ValueError:
-                raise ValueError(
-                    "Invalid transaction time format. Must be in ISO format 'YYYY-MM-DDTHH:MM:SS.ssssssZ'"
-                )
+            raise ValueError(
+                "Invalid transaction time: must be a string in ISO format 'YYYY-MM-DDTHH:MM:SS.ssssssZ'"
+            )
+        try:
+            datetime.datetime.fromisoformat(transaction_time.replace("Z", "+00:00"))
+        except ValueError:
+            raise ValueError(
+                "Invalid transaction time format. Must be in ISO format 'YYYY-MM-DDTHH:MM:SS.ssssssZ'"
+            )
 
         # Validate items format
         if not isinstance(purchased_items, list):
@@ -137,7 +130,7 @@ def store_receipt_data(
 
         return f"Receipt stored successfully with ID: {image_id}"
     except Exception as e:
-        return f"Failed to store receipt: {str(e)}"
+        raise Exception(f"Failed to store receipt: {str(e)}")
 
 
 @tool
@@ -151,25 +144,26 @@ def search_receipts_by_metadata_filter(
     Filter receipts by metadata within a specific time range and optionally by amount.
 
     Args:
-        start_time: The start datetime for the filter (in ISO format) - REQUIRED.
-        end_time: The end datetime for the filter (in ISO format) - REQUIRED.
-        min_total_amount: The minimum total amount for the filter (inclusive) - OPTIONAL.
-        max_total_amount: The maximum total amount for the filter (inclusive) - OPTIONAL.
+        start_time (str): The start datetime for the filter (in ISO format, e.g. 'YYYY-MM-DDTHH:MM:SS.ssssssZ').
+        end_time (str): The end datetime for the filter (in ISO format).
+        min_total_amount (float, optional): The minimum total amount for the filter (inclusive).
+        max_total_amount (float, optional): The maximum total amount for the filter (inclusive).
 
     Returns:
-        A string containing the list of receipt data matching all applied filters,
-        or an error message if the search failed.
+        str: A string containing the list of receipt data matching all applied filters.
+
+    Raises:
+        Exception: If the search failed or input is invalid.
     """
     try:
         # Validate start and end times
         if not isinstance(start_time, str) or not isinstance(end_time, str):
-            try:
-                datetime.datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-                datetime.datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-            except ValueError:
-                raise ValueError(
-                    "start_time and end_time must be strings in ISO format"
-                )
+            raise ValueError("start_time and end_time must be strings in ISO format")
+        try:
+            datetime.datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            datetime.datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+        except ValueError:
+            raise ValueError("start_time and end_time must be strings in ISO format")
 
         # Start with the base collection reference
         query = COLLECTION
@@ -203,12 +197,12 @@ def search_receipts_by_metadata_filter(
 
         return search_result_description
     except Exception as e:
-        return f"Error filtering receipts: {str(e)}"
+        raise Exception(f"Error filtering receipts: {str(e)}")
 
 
 @tool
 def search_relevant_receipts_by_natural_language_query(
-    query: str, limit: int = 5
+    query_text: str, limit: int = 5
 ) -> str:
     """
     Search for receipts with content most similar to the query using vector search.
@@ -217,17 +211,19 @@ def search_relevant_receipts_by_natural_language_query(
     verification and comparison with the user query is needed to confirm the results.
 
     Args:
-        query: The search text (e.g., "coffee", "dinner", "groceries").
-        limit: Maximum number of results to return (default: 5).
+        query_text (str): The search text (e.g., "coffee", "dinner", "groceries").
+        limit (int, optional): Maximum number of results to return (default: 5).
 
     Returns:
-        A string containing the list of contextually relevant receipt data,
-        or an error message if the search failed.
+        str: A string containing the list of contextually relevant receipt data.
+
+    Raises:
+        Exception: If the search failed or input is invalid.
     """
     try:
         # Generate embedding for the query text
         result = GENAI_CLIENT.models.embed_content(
-            model="text-embedding-004", contents=query
+            model="text-embedding-004", contents=query_text
         )
         query_embedding = result.embeddings[0].values
 
@@ -235,7 +231,7 @@ def search_relevant_receipts_by_natural_language_query(
             vector_field=EMBEDDING_FIELD_NAME,
             query_vector=Vector(query_embedding),
             distance_measure=DistanceMeasure.EUCLIDEAN,
-            limit=5,
+            limit=limit,
         )
 
         # Execute the query and collect results
@@ -249,7 +245,7 @@ def search_relevant_receipts_by_natural_language_query(
 
         return search_result_description
     except Exception as e:
-        return f"Error searching receipts: {str(e)}"
+        raise Exception(f"Error searching receipts: {str(e)}")
 
 
 def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
@@ -257,21 +253,19 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
     Retrieve receipt data from the database using the image_id.
 
     Args:
-        image_id: The unique identifier of the receipt image. For example, if the placeholder is
-                [IMAGE-ID 12345] or [IMAGE-POSITION 0-ID 12345], the ID to use is 12345.
+        image_id (str): The unique identifier of the receipt image. For example, if the placeholder is
+            [IMAGE-ID 12345] or [IMAGE-POSITION 0-ID 12345], the ID to use is 12345.
 
     Returns:
-        A dictionary containing the receipt data with the following keys:
-            - receipt_id: The unique identifier of the receipt image.
-            - store_name: The name of the store.
-            - transaction_time: The time of purchase in UTC.
-            - total_amount: The total amount spent.
-            - currency: The currency of the transaction.
-            - purchased_items: List of items purchased with their details.
-
-        Returns an empty dictionary if no receipt is found, or an error message string if the operation failed.
+        Dict[str, Any]: A dictionary containing the receipt data with the following keys:
+            - receipt_id (str): The unique identifier of the receipt image.
+            - store_name (str): The name of the store.
+            - transaction_time (str): The time of purchase in UTC.
+            - total_amount (float): The total amount spent.
+            - currency (str): The currency of the transaction.
+            - purchased_items (List[Dict[str, Any]]): List of items purchased with their details.
+        Returns an empty dictionary if no receipt is found.
     """
-
     # Query the receipts collection for documents with matching receipt_id (image_id)
     query = COLLECTION.where(filter=FieldFilter("receipt_id", "==", image_id)).limit(1)
     docs = list(query.stream())
