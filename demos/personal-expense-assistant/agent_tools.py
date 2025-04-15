@@ -145,7 +145,7 @@ def search_receipts_by_metadata_filter(
 
     Args:
         start_time (str): The start datetime for the filter (in ISO format, e.g. 'YYYY-MM-DDTHH:MM:SS.ssssssZ').
-        end_time (str): The end datetime for the filter (in ISO format).
+        end_time (str): The end datetime for the filter (in ISO format, e.g. 'YYYY-MM-DDTHH:MM:SS.ssssssZ').
         min_total_amount (float, optional): The minimum total amount for the filter (inclusive).
         max_total_amount (float, optional): The maximum total amount for the filter (inclusive).
 
