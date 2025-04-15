@@ -25,7 +25,7 @@ This project contains demo code to deploy a personal assistant capable to extrac
                            firestore.googleapis.com \
                            run.googleapis.com \
                            cloudbuild.googleapis.com \
-                           cloudresourcemanager.googleapis.com \
+                           cloudresourcemanager.googleapis.com
     ```
 
 - Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and prepare the python env
