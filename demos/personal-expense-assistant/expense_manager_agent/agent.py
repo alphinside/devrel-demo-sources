@@ -1,9 +1,11 @@
 from google.adk.agents import Agent
-from .tools import store_receipt_data, search_receipts_by_metadata_filter, search_relevant_receipts_by_natural_language_query,get_receipt_data_by_image_id
+from expense_manager_agent.tools import store_receipt_data, search_receipts_by_metadata_filter, search_relevant_receipts_by_natural_language_query,get_receipt_data_by_image_id
 import os
 from settings import get_settings
 from google.adk.planners import BuiltInPlanner
 from google.genai import types
+from google.adk.agents.callback_context import CallbackContext
+from google.adk.models.llm_request import LlmRequest
 
 SETTINGS = get_settings()
 os.environ["GOOGLE_CLOUD_PROJECT"] = SETTINGS.GCLOUD_PROJECT_ID
@@ -15,6 +17,12 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 prompt_path = os.path.join(current_dir, "task_prompt.md")
 with open(prompt_path, "r") as file:
     task_prompt = file.read()
+
+def modify_image_data_to_string_placeholder_in_history(
+    callback_context: CallbackContext, llm_request: LlmRequest
+) -> None:
+    # TODO: Implement image data modification to string placeholder in history
+    pass
 
 root_agent = Agent(
     name="expense_manager_agent",
@@ -29,5 +37,6 @@ root_agent = Agent(
             include_thoughts=True,
             thinking_budget=1024,
         )
-    )
+    ),
+    before_model_callback=modify_image_data_to_string_placeholder_in_history
 ) 

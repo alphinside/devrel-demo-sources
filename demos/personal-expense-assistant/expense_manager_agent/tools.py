@@ -7,6 +7,7 @@ from google.cloud.firestore_v1.base_query import And
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from settings import get_settings
 from google import genai
+from utils import sanitize_image_id
 
 SETTINGS = get_settings()
 DB_CLIENT = firestore.Client(
@@ -63,8 +64,7 @@ def store_receipt_data(
     """
     try:
         # In case of it provide full image placeholder, extract the id string
-        if image_id.startswith("[IMAGE-"):
-            image_id = image_id.split("ID ")[1].split("]")[0]
+        image_id = sanitize_image_id(image_id)
 
         # Check if the receipt already exists
         doc = get_receipt_data_by_image_id(image_id)
@@ -263,8 +263,7 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
         Returns an empty dictionary if no receipt is found.
     """
     # In case of it provide full image placeholder, extract the id string
-    if image_id.startswith("[IMAGE-"):
-        image_id = image_id.split("ID ")[1].split("]")[0]
+    image_id = sanitize_image_id(image_id)
     
     # Query the receipts collection for documents with matching receipt_id (image_id)
     query = COLLECTION.where(filter=FieldFilter("receipt_id", "==", image_id)).limit(1)
