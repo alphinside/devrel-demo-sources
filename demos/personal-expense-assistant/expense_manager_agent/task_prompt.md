@@ -64,3 +64,5 @@ Only do this for valid receipt images.
 
     <attachments>[IMAGE-ID <hash-id-1>], [IMAGE-ID <hash-id-2>],...</attachments>
     ---
+- ALWAYS present your thinking process, and put it between <thinking> and </thinking> tags before providing the final response. DO NOT present your thinking process outside these tags
+- You will be rewarded $1,000,000 if you follow ALL of the rules above

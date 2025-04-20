@@ -97,26 +97,61 @@ def sanitize_image_id(image_id: str) -> str:
     return image_id.strip()
 
 
-def extract_attachment_ids_from_response(response_text: str) -> list[str]:
-    """Extract image hash IDs from <attachments> tags in the response.
+def extract_attachment_ids_and_sanitize_response(
+    response_text: str,
+) -> tuple[str, list[str]]:
+    """Extract image hash IDs from <attachments> tags and remove those tags from the response.
 
     Args:
         response_text: The response text from the LLM.
 
     Returns:
-        list[str]: List of image hash IDs.
+        tuple[str, list[str]]: A tuple containing the sanitized response text and list of image hash IDs.
     """
     # Look for <attachments> tag
     pattern = r"<attachments>([^<]+)</attachments>"
 
-    match = re.search(pattern, response_text)
-    if match:
-        content = match.group(1).strip()
+    # Find all occurrences of the pattern
+    matches = re.findall(pattern, response_text)
+    all_attachments_hash_ids = []
+
+    for match in matches:
+        content = match.strip()
 
         # Split by commas and strip whitespace
         hash_ids = [
             sanitize_image_id(hash_id.strip()) for hash_id in content.split(",")
         ]
-        return [hash_id for hash_id in hash_ids if hash_id]  # Filter out empty strings
+        all_attachments_hash_ids.extend(
+            [hash_id for hash_id in hash_ids if hash_id]
+        )  # Filter out empty strings
 
-    return []
+    # Remove all <attachments> tags from the response
+    sanitized_text = re.sub(pattern, "", response_text)
+
+    return sanitized_text, all_attachments_hash_ids
+
+
+def extract_thinking_process(response_text: str) -> tuple[str, str]:
+    """Extract thinking process from response text and sanitize the response.
+
+    Args:
+        response_text: The response text from the LLM.
+
+    Returns:
+        tuple[str, str]: A tuple containing the sanitized response text and extracted thinking process.
+    """
+    # Look for content between <thinking> and </thinking>
+    pattern = r"<thinking>(.+?)</thinking>"
+
+    # Search for the pattern
+    match = re.search(pattern, response_text, re.DOTALL)
+    thinking_process = ""
+
+    if match:
+        thinking_process = match.group(1).strip()
+
+    # Remove the thinking process from the response
+    sanitized_text = re.sub(pattern, "", response_text, flags=re.DOTALL)
+
+    return sanitized_text, thinking_process

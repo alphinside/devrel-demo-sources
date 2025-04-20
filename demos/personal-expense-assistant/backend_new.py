@@ -8,7 +8,11 @@ from typing import AsyncIterator
 from types import SimpleNamespace
 import uvicorn
 from contextlib import asynccontextmanager
-from utils import extract_attachment_ids_from_response, download_image_from_gcs
+from utils import (
+    extract_attachment_ids_and_sanitize_response,
+    download_image_from_gcs,
+    extract_thinking_process,
+)
 from schema import ImageData, ChatRequest, ChatResponse
 
 
@@ -94,7 +98,10 @@ async def chat(
 
         # Extract and process any attachments in the response
         base64_attachments = []
-        attachment_ids = extract_attachment_ids_from_response(final_response_text)
+        sanitized_text, attachment_ids = extract_attachment_ids_and_sanitize_response(
+            final_response_text
+        )
+        sanitized_text, thinking_process = extract_thinking_process(sanitized_text)
 
         # Download images from GCS and replace hash IDs with base64 data
         for image_hash_id in attachment_ids:
@@ -105,7 +112,9 @@ async def chat(
                 )
 
         return ChatResponse(
-            response=final_response_text, attachments=base64_attachments
+            response=sanitized_text,
+            thinking_process=thinking_process,
+            attachments=base64_attachments,
         )
 
     except Exception as e:

@@ -89,7 +89,18 @@ def get_response_from_llm_backend(
         if result.error:
             return [f"Error: {result.error}"]
 
-        chat_responses = [result.response]
+        chat_responses = []
+
+        if result.thinking_process:
+            chat_responses.append(
+                gr.ChatMessage(
+                    role="assistant",
+                    content=result.thinking_process,
+                    metadata={"title": "🧠 Thinking Process"},
+                )
+            )
+
+        chat_responses.append(gr.ChatMessage(role="assistant", content=result.response))
 
         if result.attachments:
             for attachment in result.attachments:

@@ -36,5 +36,6 @@ class ChatResponse(BaseModel):
     """
 
     response: str
+    thinking_process: str = ""
     attachments: List[ImageData] = []
     error: Optional[str] = None
