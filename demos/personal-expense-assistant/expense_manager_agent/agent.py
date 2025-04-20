@@ -35,7 +35,7 @@ root_agent = Agent(
     planner=BuiltInPlanner(
         thinking_config=types.ThinkingConfig(
             include_thoughts=True,
-            thinking_budget=1024,
+            thinking_budget=2048,
         )
     ),
     before_model_callback=modify_image_data_to_string_placeholder_in_history
