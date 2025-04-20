@@ -220,19 +220,6 @@ def reformat_recent_message_and_process_images(
     return formatted_message, images
 
 
-def load_prompt_template() -> str:
-    """Load the prompt template from task_prompt.md file.
-
-    Returns:
-        str: The prompt template string used for LLM conversation.
-    """
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    prompt_path = os.path.join(current_dir, "task_prompt.md")
-
-    with open(prompt_path, "r") as file:
-        return file.read()
-
-
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest = Body(...),

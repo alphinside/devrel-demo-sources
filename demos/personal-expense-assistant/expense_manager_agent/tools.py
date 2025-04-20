@@ -7,7 +7,6 @@ from google.cloud.firestore_v1.base_query import And
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from settings import get_settings
 from google import genai
-from smolagents import tool
 
 SETTINGS = get_settings()
 DB_CLIENT = firestore.Client(
@@ -32,14 +31,13 @@ Receipt Image ID: {receipt_id}
 """
 
 
-@tool
 def store_receipt_data(
     image_id: str,
     store_name: str,
     transaction_time: str,
     total_amount: float,
     purchased_items: List[Dict[str, Any]],
-    currency: str = "IDR",
+    currency: str = "USD",
 ) -> str:
     """
     Store receipt data in the database.
@@ -55,7 +53,7 @@ def store_receipt_data(
             - price (float): The price of the item.
             - quantity (int, optional): The quantity of the item. Defaults to 1 if not provided.
         currency (str, optional): The currency of the transaction, can be derived from the store location.
-            If unsure, default is "IDR".
+            If unsure, default is "USD".
 
     Returns:
         str: A success message with the receipt ID.
@@ -133,12 +131,11 @@ def store_receipt_data(
         raise Exception(f"Failed to store receipt: {str(e)}")
 
 
-@tool
 def search_receipts_by_metadata_filter(
     start_time: str,
     end_time: str,
-    min_total_amount: float | None = None,
-    max_total_amount: float | None = None,
+    min_total_amount: float = -1.,
+    max_total_amount: float = -1.,
 ) -> str:
     """
     Filter receipts by metadata within a specific time range and optionally by amount.
@@ -146,8 +143,8 @@ def search_receipts_by_metadata_filter(
     Args:
         start_time (str): The start datetime for the filter (in ISO format, e.g. 'YYYY-MM-DDTHH:MM:SS.ssssssZ').
         end_time (str): The end datetime for the filter (in ISO format, e.g. 'YYYY-MM-DDTHH:MM:SS.ssssssZ').
-        min_total_amount (float, optional): The minimum total amount for the filter (inclusive).
-        max_total_amount (float, optional): The maximum total amount for the filter (inclusive).
+        min_total_amount (float): The minimum total amount for the filter (inclusive). Defaults to -1.
+        max_total_amount (float): The maximum total amount for the filter (inclusive). Defaults to -1.
 
     Returns:
         str: A string containing the list of receipt data matching all applied filters.
@@ -175,10 +172,10 @@ def search_receipts_by_metadata_filter(
         ]
 
         # Add optional filters
-        if min_total_amount is not None:
+        if min_total_amount != -1:
             filters.append(FieldFilter("total_amount", ">=", min_total_amount))
 
-        if max_total_amount is not None:
+        if max_total_amount != -1:
             filters.append(FieldFilter("total_amount", "<=", max_total_amount))
 
         # Apply the filters
@@ -200,15 +197,14 @@ def search_receipts_by_metadata_filter(
         raise Exception(f"Error filtering receipts: {str(e)}")
 
 
-@tool
 def search_relevant_receipts_by_natural_language_query(
     query_text: str, limit: int = 5
 ) -> str:
     """
     Search for receipts with content most similar to the query using vector search.
-
-    Results from this tool are not final, they are only suggestions. Additional
-    verification and comparison with the user query is needed to confirm the results.
+    This tool can be use for user query that is difficult to translate into metadata filters.
+    Such as store name or item name which sensitive to string matching.
+    Use this tool if you cannot utilize the search by metadata filter tool.
 
     Args:
         query_text (str): The search text (e.g., "coffee", "dinner", "groceries").
@@ -266,6 +262,10 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
             - purchased_items (List[Dict[str, Any]]): List of items purchased with their details.
         Returns an empty dictionary if no receipt is found.
     """
+    # In case of it provide full image placeholder, extract the id string
+    if image_id.startswith("[IMAGE-"):
+        image_id = image_id.split("ID ")[1].split("]")[0]
+    
     # Query the receipts collection for documents with matching receipt_id (image_id)
     query = COLLECTION.where(filter=FieldFilter("receipt_id", "==", image_id)).limit(1)
     docs = list(query.stream())
