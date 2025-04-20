@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List, Optional
 
+
 class ImageData(BaseModel):
     """Model for image data with hash identifier.
 
@@ -9,6 +10,7 @@ class ImageData(BaseModel):
     """
 
     serialized_image: str
+
 
 class ChatRequest(BaseModel):
     """Model for a chat request.

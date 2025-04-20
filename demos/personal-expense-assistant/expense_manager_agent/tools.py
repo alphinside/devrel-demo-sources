@@ -134,8 +134,8 @@ def store_receipt_data(
 def search_receipts_by_metadata_filter(
     start_time: str,
     end_time: str,
-    min_total_amount: float = -1.,
-    max_total_amount: float = -1.,
+    min_total_amount: float = -1.0,
+    max_total_amount: float = -1.0,
 ) -> str:
     """
     Filter receipts by metadata within a specific time range and optionally by amount.
@@ -264,7 +264,7 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
     """
     # In case of it provide full image placeholder, extract the id string
     image_id = sanitize_image_id(image_id)
-    
+
     # Query the receipts collection for documents with matching receipt_id (image_id)
     query = COLLECTION.where(filter=FieldFilter("receipt_id", "==", image_id)).limit(1)
     docs = list(query.stream())

@@ -88,12 +88,14 @@ def download_image_from_gcs(image_hash: str) -> str | None:
         print(f"Error downloading image from GCS: {e}")
         return None
 
+
 def sanitize_image_id(image_id: str) -> str:
     """Sanitize image ID by removing any leading/trailing whitespace."""
     if image_id.startswith("[IMAGE-"):
         image_id = image_id.split("ID ")[1].split("]")[0]
-        
+
     return image_id.strip()
+
 
 def extract_attachment_ids_from_response(response_text: str) -> list[str]:
     """Extract image hash IDs from <attachments> tags in the response.
@@ -112,7 +114,9 @@ def extract_attachment_ids_from_response(response_text: str) -> list[str]:
         content = match.group(1).strip()
 
         # Split by commas and strip whitespace
-        hash_ids = [sanitize_image_id(hash_id.strip()) for hash_id in content.split(",")]
+        hash_ids = [
+            sanitize_image_id(hash_id.strip()) for hash_id in content.split(",")
+        ]
         return [hash_id for hash_id in hash_ids if hash_id]  # Filter out empty strings
 
     return []
