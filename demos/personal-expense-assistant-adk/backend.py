@@ -14,6 +14,7 @@ from utils import (
     format_user_request_to_adk_content,
 )
 from schema import ImageData, ChatRequest, ChatResponse
+import logger
 
 
 # Application state to hold service contexts
@@ -34,14 +35,14 @@ async def lifespan(app: FastAPI):
     app_contexts.session_service = InMemorySessionService()
     app_contexts.expense_manager_agent_runner = Runner(
         agent=expense_manager_agent,  # The agent we want to run
-        app_name=AGENT_APP_NAME,  # Associates runs with our app
+        app_name="expense_manager_app",  # Associates runs with our app
         session_service=app_contexts.session_service,  # Uses our session manager
     )
 
-    print("Application started and services initialized")
+    logger.info("Application started successfully")
     yield
-    print("Application shutting down, cleaning up resources")
-    # Perform cleanup during application shutdown
+    logger.info("Application shutting down")
+    # Perform cleanup during application shutdown if necessary
 
 
 # Helper function to get application state as a dependency
@@ -51,7 +52,6 @@ async def get_app_contexts() -> AppContexts:
 
 # Create FastAPI app
 app = FastAPI(title="Personal Expense Assistant API", lifespan=lifespan)
-AGENT_APP_NAME = "expense_manager_app"
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -71,10 +71,10 @@ async def chat(
 
     # Create session if it doesn't exist
     if not app_context.session_service.get_session(
-        app_name=AGENT_APP_NAME, user_id=user_id, session_id=session_id
+        app_name="expense_manager_app", user_id=user_id, session_id=session_id
     ):
         app_context.session_service.create_session(
-            app_name=AGENT_APP_NAME, user_id=user_id, session_id=session_id
+            app_name="expense_manager_app", user_id=user_id, session_id=session_id
         )
 
     try:
@@ -96,7 +96,10 @@ async def chat(
                     final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
                 break  # Stop processing events once the final response is found
 
-        print(f"Raw final response: {final_response_text}")
+        logger.info(
+            "Received final response from agent", raw_final_response=final_response_text
+        )
+
         # Extract and process any attachments and thinking process in the response
         base64_attachments = []
         sanitized_text, attachment_ids = extract_attachment_ids_and_sanitize_response(
@@ -114,8 +117,12 @@ async def chat(
                     ImageData(serialized_image=base64_data, mime_type=mime_type)
                 )
 
-        print(f"Sanitized final response: {sanitized_text}")
-        print(f"Thinking process: {thinking_process}")
+        logger.info(
+            "Processed response with attachments",
+            sanitized_response=sanitized_text,
+            thinking_process=thinking_process,
+            attachment_ids=attachment_ids,
+        )
 
         return ChatResponse(
             response=sanitized_text,
@@ -124,7 +131,7 @@ async def chat(
         )
 
     except Exception as e:
-        print(f"Error in processing: {str(e)}")
+        logger.error("Error processing chat request", error_message=str(e))
         return ChatResponse(
             response="", error=f"Error in generating response: {str(e)}"
         )
