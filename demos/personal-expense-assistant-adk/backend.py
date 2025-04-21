@@ -96,6 +96,7 @@ async def chat(
                     final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
                 break  # Stop processing events once the final response is found
 
+        print(f"Raw final response: {final_response_text}")
         # Extract and process any attachments and thinking process in the response
         base64_attachments = []
         sanitized_text, attachment_ids = extract_attachment_ids_and_sanitize_response(
@@ -112,6 +113,9 @@ async def chat(
                 base64_attachments.append(
                     ImageData(serialized_image=base64_data, mime_type=mime_type)
                 )
+
+        print(f"Sanitized final response: {sanitized_text}")
+        print(f"Thinking process: {thinking_process}")
 
         return ChatResponse(
             response=sanitized_text,

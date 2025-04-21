@@ -1400,7 +1400,7 @@ wheels = [
 ]
 
 [[package]]
-name = "personal-expense-assistant"
+name = "personal-expense-assistant-adk"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
