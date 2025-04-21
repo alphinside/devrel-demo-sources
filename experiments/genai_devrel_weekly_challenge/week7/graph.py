@@ -183,7 +183,9 @@ class GraphManager:
             self.graph = graph.compile(checkpointer=self.checkpointer)
         else:
             self.graph = graph.compile()
-            logger.info("Database connection skipped due to use_memory being False.") # Add this line
+            logger.info(
+                "Database connection skipped due to use_memory being False."
+            )  # Add this line
 
     def __del__(self) -> None:
         """Clean up database connection on object destruction."""
