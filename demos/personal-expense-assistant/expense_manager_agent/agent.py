@@ -24,11 +24,18 @@ with open(prompt_path, "r") as file:
     task_prompt = file.read()
 
 
-def modify_image_data_to_string_placeholder_in_history(
+def remove_image_uri_in_history(
     callback_context: CallbackContext, llm_request: LlmRequest
 ) -> None:
-    # TODO: Implement image data modification to string placeholder in history
-    pass
+    # Implement image data will in history will be dropped here for efficiency
+    # Only image data in the last user message will be kept
+    # The LLM will use tool `get_receipt_data_by_image_id` to retrieve the image
+    # details when referenced as we already have a structure to put the
+    # image ID placeholder in the prompt
+    #
+    # The following code will modify the request sent to LLM
+    for content in llm_request.contents[:-1]:
+        content.parts = [part for part in content.parts if not part.file_data]
 
 
 root_agent = Agent(
@@ -50,5 +57,5 @@ root_agent = Agent(
             thinking_budget=2048,
         )
     ),
-    before_model_callback=modify_image_data_to_string_placeholder_in_history,
+    before_model_callback=remove_image_uri_in_history,
 )
