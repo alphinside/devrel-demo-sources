@@ -35,7 +35,8 @@ def remove_image_uri_in_history(
     #
     # The following code will modify the request sent to LLM
     for content in llm_request.contents[:-1]:
-        content.parts = [part for part in content.parts if not part.file_data]
+        if content.role == "user":
+            content.parts = [part for part in content.parts if part.file_data is None]
 
 
 root_agent = Agent(

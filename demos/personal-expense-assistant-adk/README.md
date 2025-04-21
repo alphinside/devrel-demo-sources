@@ -100,7 +100,8 @@ gcloud run deploy personal-expense-assistant \
 --source . \
 --port=8080 \
 --allow-unauthenticated \
---env-vars-file=settings.yaml
+--env-vars-file=settings.yaml \
+--memory 1024Mi
 ```
 
 If successful, you should see the following output:
