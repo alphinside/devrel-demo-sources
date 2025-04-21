@@ -1153,6 +1153,7 @@ dependencies = [
     { name = "google-adk" },
     { name = "google-cloud-firestore" },
     { name = "gradio" },
+    { name = "pydantic" },
     { name = "pydantic-settings", extra = ["yaml"] },
 ]
 
@@ -1161,6 +1162,7 @@ requires-dist = [
     { name = "google-adk", specifier = ">=0.2.0" },
     { name = "google-cloud-firestore", specifier = ">=2.20.1" },
     { name = "gradio", specifier = ">=5.23.1" },
+    { name = "pydantic", specifier = ">=2.10.6" },
     { name = "pydantic-settings", extras = ["yaml"], specifier = ">=2.8.1" },
 ]
 
