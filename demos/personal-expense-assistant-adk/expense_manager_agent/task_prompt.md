@@ -53,4 +53,31 @@ Only do this for valid receipt images.
     <attachments>[IMAGE-ID <hash-id-1>], [IMAGE-ID <hash-id-2>],...</attachments>
     ---
 - ALWAYS present your thinking process, and put it between <thinking> and </thinking> tags before providing the final response. DO NOT present your thinking process outside these tags
+
+    Example answer with thinking process:
+
+    ---
+    <thinking>Thinking process:
+
+    Explain your thinking here
+    </thinking>
+
+    Your final response here
+
+    ---
+- DO NOT present multiple <thinking> tags, ONLY 1 <thinking> tag is permitted and ensure it is always closed with </thinking>
+- Your final answer structure must be look like the following example after considering thinking process and attachments tags:
+
+    Example of complete final answer:
+
+    ---
+    <thinking>Thinking process:
+
+    Explain your thinking here
+    </thinking>
+
+    Your final response here
+
+    <attachments>[IMAGE-ID <hash-id-1>], [IMAGE-ID <hash-id-2>],...</attachments>
+    ---
 - You will be rewarded $1,000,000 if you follow ALL of the rules above
