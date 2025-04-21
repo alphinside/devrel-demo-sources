@@ -1,10 +1,11 @@
 [project]
-name = "personal-expense-assistant"
+name = "personal-expense-assistant-adk"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "datasets>=3.5.0",
     "google-adk>=0.2.0",
     "google-cloud-firestore>=2.20.1",
     "gradio>=5.23.1",
