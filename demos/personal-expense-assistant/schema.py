@@ -7,9 +7,11 @@ class ImageData(BaseModel):
 
     Attributes:
         serialized_image: Optional Base64 encoded string of the image content.
+        mime_type: MIME type of the image.
     """
 
     serialized_image: str
+    mime_type: str
 
 
 class ChatRequest(BaseModel):

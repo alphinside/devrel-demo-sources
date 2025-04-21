@@ -1,6 +1,6 @@
-# Personal Expense Assistant Agent using Smolagents, Gemini, and Firestore
+# Personal Expense Assistant Agent using Google ADK, Gemini 2.5 Flash, and Firestore
 
-This project contains demo code to deploy a personal assistant capable to extract and store personal invoices and receipts, store it in databases, and provide search capabilities. It built as two services, frontend using Gradio and backend services using FastAPI. It utilize Smolagent as the agent framework, Gemini as the language model, Firestore as the database, and Google Cloud Storage as the storage.  
+This project contains demo code to deploy a personal assistant capable to extract and store personal invoices and receipts, store it in databases, and provide search capabilities. It built as two services, frontend using Gradio and backend services using FastAPI. It utilize Google ADK as the agent framework, Gemini 2.5 Flash as the language model, Firestore as the database, and Google Cloud Storage as the storage. It also display how we can leverage Gemini 2.5 Flash thinking process in the UI
 
 ## Prerequisites
 

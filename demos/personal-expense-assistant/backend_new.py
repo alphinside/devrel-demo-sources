@@ -2,7 +2,6 @@ from expense_manager_agent.agent import root_agent as expense_manager_agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.adk.events import Event
-from google.genai import types
 from fastapi import FastAPI, Body, Depends
 from typing import AsyncIterator
 from types import SimpleNamespace
@@ -12,6 +11,7 @@ from utils import (
     extract_attachment_ids_and_sanitize_response,
     download_image_from_gcs,
     extract_thinking_process,
+    format_user_request_to_adk_content,
 )
 from schema import ImageData, ChatRequest, ChatResponse
 
@@ -61,7 +61,7 @@ async def chat(
 ) -> ChatResponse:
     """Process chat request and get response from the agent"""
     # Prepare the user's message in ADK format
-    content = types.Content(role="user", parts=[types.Part(text=request.text)])
+    content = format_user_request_to_adk_content(request)
 
     final_response_text = "Agent did not produce a final response."  # Default
 
@@ -96,7 +96,7 @@ async def chat(
                     final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
                 break  # Stop processing events once the final response is found
 
-        # Extract and process any attachments in the response
+        # Extract and process any attachments and thinking process in the response
         base64_attachments = []
         sanitized_text, attachment_ids = extract_attachment_ids_and_sanitize_response(
             final_response_text
@@ -105,10 +105,12 @@ async def chat(
 
         # Download images from GCS and replace hash IDs with base64 data
         for image_hash_id in attachment_ids:
-            base64_data = download_image_from_gcs(image_hash_id)
-            if base64_data:
+            # Download image data and get MIME type
+            result = download_image_from_gcs(image_hash_id)
+            if result:
+                base64_data, mime_type = result
                 base64_attachments.append(
-                    ImageData(serialized_image=base64_data, image_hash_id=image_hash_id)
+                    ImageData(serialized_image=base64_data, mime_type=mime_type)
                 )
 
         return ChatResponse(

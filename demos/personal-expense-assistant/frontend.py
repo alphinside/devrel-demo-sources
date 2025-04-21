@@ -1,3 +1,4 @@
+import mimetypes
 import gradio as gr
 import requests
 import base64
@@ -11,26 +12,29 @@ from schema import ImageData, ChatRequest, ChatResponse
 SETTINGS = get_settings()
 
 
-def encode_image_to_base64(image_path: str) -> ImageData:
-    """Encode a file to base64 string.
+def encode_image_to_base64_and_get_mime_type(image_path: str) -> ImageData:
+    """Encode a file to base64 string and get MIME type.
 
-    Reads an image file and returns the base64-encoded image data.
+    Reads an image file and returns the base64-encoded image data and its MIME type.
 
     Args:
         image_path: Path to the image file to encode.
 
     Returns:
-        ImageData object containing the base64 encoded image data.
+        ImageData object containing the base64 encoded image data and its MIME type.
     """
     # Read the image file
     with open(image_path, "rb") as file:
         image_content = file.read()
 
+    # Get the mime type
+    mime_type = mimetypes.guess_type(image_path)[0]
+
     # Base64 encode the image
     base64_data = base64.b64encode(image_content).decode("utf-8")
 
     # Return as ImageData object
-    return ImageData(serialized_image=base64_data)
+    return ImageData(serialized_image=base64_data, mime_type=mime_type)
 
 
 def decode_base64_to_image(base64_data: str) -> Image.Image:
@@ -70,7 +74,7 @@ def get_response_from_llm_backend(
     image_data = []
     if uploaded_files := message.get("files", []):
         for file_path in uploaded_files:
-            image_data.append(encode_image_to_base64(file_path))
+            image_data.append(encode_image_to_base64_and_get_mime_type(file_path))
 
     # Prepare the request payload
     payload = ChatRequest(
