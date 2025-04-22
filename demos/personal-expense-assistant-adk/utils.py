@@ -4,10 +4,13 @@ import base64
 import tempfile
 from pathlib import Path
 import re
-from schema import ChatRequest
+from schema import ChatRequest, ImageData
 from google.genai import types
 import hashlib
 import json
+from google.adk.artifacts import GcsArtifactService
+import logger
+
 
 SETTINGS = get_settings()
 
@@ -19,11 +22,89 @@ IMAGE_CACHE_DIR = Path(tempfile.gettempdir()) / "personal-expense-assistant-cach
 IMAGE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def format_user_request_to_adk_content(request: ChatRequest) -> types.Content:
+def store_uploaded_image_as_artifact(
+    artifact_service: GcsArtifactService,
+    app_name: str,
+    user_id: str,
+    session_id: str,
+    image_data: ImageData,
+) -> tuple[str, str]:
+    """
+    Store an uploaded image as an artifact in Google Cloud Storage.
+
+    Args:
+        artifact_service: The artifact service to use for storing artifacts
+        app_name: The name of the application
+        user_id: The ID of the user
+        session_id: The ID of the session
+        image_data: The image data to store
+
+    Returns:
+        tuple[str, str]: A tuple containing the image hash ID and the artifact URI
+    """
+
+    image_byte = base64.b64decode(image_data.serialized_image)
+    hasher = hashlib.sha256(image_byte)
+    image_hash_id = hasher.hexdigest()[:12]
+
+    artifact_versions = artifact_service.list_versions(
+        app_name=app_name,
+        user_id=user_id,
+        session_id=session_id,
+        filename=image_hash_id,
+    )
+    if artifact_versions:
+        logger.info(f"Image {image_hash_id} already exists in GCS, skipping upload")
+
+        artifact_uri = construct_full_artifact_uri(
+            artifact_service._get_blob_name(
+                app_name=app_name,
+                user_id=user_id,
+                session_id=session_id,
+                filename=image_hash_id,
+                version=max(artifact_versions),
+            )
+        )
+
+        return image_hash_id, artifact_uri
+
+    artifact_version = artifact_service.save_artifact(
+        app_name=app_name,
+        user_id=user_id,
+        session_id=session_id,
+        filename=image_hash_id,
+        artifact=types.Part(
+            inline_data=types.Blob(mime_type=image_data.mime_type, data=image_byte)
+        ),
+    )
+
+    artifact_uri = construct_full_artifact_uri(
+        artifact_service._get_blob_name(
+            app_name=app_name,
+            user_id=user_id,
+            session_id=session_id,
+            filename=image_hash_id,
+            version=artifact_version,
+        )
+    )
+
+    return image_hash_id, artifact_uri
+
+
+def construct_full_artifact_uri(blob_name: str) -> str:
+    """Construct the full artifact URI from the blob name."""
+    return f"gs://{SETTINGS.STORAGE_BUCKET_NAME}/{blob_name}"
+
+
+def format_user_request_to_adk_content(
+    request: ChatRequest, app_name: str, artifact_service: GcsArtifactService
+) -> types.Content:
     """Format a user request into ADK Content format.
 
     Args:
         request: The chat request object containing text and optional files
+        app_name: The name of the application
+        artifact_service: The artifact service to use for storing artifacts
 
     Returns:
         types.Content: The formatted content for ADK
@@ -34,14 +115,20 @@ def format_user_request_to_adk_content(request: ChatRequest) -> types.Content:
     # Handle image files if present
     for data in request.files:
         # Process the image and convert to string placeholder
-        image_data = base64.b64decode(data.serialized_image)
-        # Store in Google Cloud Storage
-        image_hash_id, gs_uri = store_image_in_gcs(image_data, data.mime_type)
+        image_hash_id, artifact_uri = store_uploaded_image_as_artifact(
+            artifact_service=artifact_service,
+            app_name=app_name,
+            user_id=request.user_id,
+            session_id=request.session_id,
+            image_data=data,
+        )
 
         # Add gs:// URI to parts
         parts.append(
             types.Part(
-                file_data=types.FileData(file_uri=gs_uri, mime_type=data.mime_type)
+                file_data=types.FileData(
+                    file_uri=artifact_uri, mime_type=data.mime_type
+                )
             )
         )
 
@@ -59,42 +146,6 @@ def format_user_request_to_adk_content(request: ChatRequest) -> types.Content:
     return types.Content(role="user", parts=parts)
 
 
-def store_image_in_gcs(image_data: bytes, mime_type: str) -> tuple[str, str]:
-    """
-    Generate a unique hash ID for image data and store it in Google Cloud Storage.
-
-    Args:
-        image_data: Raw binary image data (standardized as WebP)
-        mime_type: MIME type of the image
-
-    Returns:
-        tuple[str, str]: A tuple containing the hash identifier of the image and the gs:// URI
-    """
-    try:
-        # Generate a unique hash ID for the image
-        hasher = hashlib.sha256(image_data)
-        image_hash_id = hasher.hexdigest()[:12]
-
-        # Create blob object
-        blob = GCS_BUCKET_CLIENT.blob(image_hash_id)
-
-        # Get URI formats for the blob
-        gs_uri = f"gs://{SETTINGS.STORAGE_BUCKET_NAME}/{image_hash_id}"
-
-        # Check if blob already exists to avoid redundant uploads
-        if blob.exists():
-            print(f"Image {image_hash_id} already exists in GCS, skipping upload")
-            return image_hash_id, gs_uri
-
-        # Upload the image data
-        blob.upload_from_string(image_data, content_type=mime_type)
-        print(f"Successfully uploaded image {image_hash_id} to GCS")
-
-        return image_hash_id, gs_uri
-    except Exception as e:
-        raise Exception(f"Error storing image in GCS: {e}")
-
-
 def download_image_from_gcs(image_hash: str) -> tuple[str, str] | None:
     """
     Downloads an image from Google Cloud Storage and returns it as base64 encoded string with its MIME type.
@@ -106,6 +157,7 @@ def download_image_from_gcs(image_hash: str) -> tuple[str, str] | None:
     Returns:
         tuple[str, str] | None: A tuple containing (base64_encoded_data, mime_type), or None if download fails
     """
+    # TODO: Refactor using artifact service
     try:
         # Define the local cache file path and metadata path
         local_cache_path = IMAGE_CACHE_DIR / image_hash
@@ -114,7 +166,7 @@ def download_image_from_gcs(image_hash: str) -> tuple[str, str] | None:
 
         # Check if the file exists in local cache
         if local_cache_path.exists() and local_metadata_path.exists():
-            print(f"Using cached image {image_hash} from local storage")
+            logger.info(f"Using cached image {image_hash} from local storage")
             with open(local_cache_path, "rb") as f:
                 image_data = f.read()
             with open(local_metadata_path, "r") as f:
@@ -126,7 +178,7 @@ def download_image_from_gcs(image_hash: str) -> tuple[str, str] | None:
 
             # Check if blob exists
             if not blob.exists():
-                print(f"Image {image_hash} does not exist in GCS")
+                logger.info(f"Image {image_hash} does not exist in GCS")
                 return None
 
             # Download the blob as bytes and save to local cache
@@ -139,11 +191,13 @@ def download_image_from_gcs(image_hash: str) -> tuple[str, str] | None:
             with open(local_metadata_path, "w") as f:
                 f.write(mime_type)
 
-            print(f"Downloaded and cached image {image_hash} with type {mime_type}")
+            logger.info(
+                f"Downloaded and cached image {image_hash} with type {mime_type}"
+            )
 
         return base64.b64encode(image_data).decode("utf-8"), mime_type
     except Exception as e:
-        print(f"Error downloading image from GCS: {e}")
+        logger.error(f"Error downloading image from GCS: {e}")
         return None
 
 

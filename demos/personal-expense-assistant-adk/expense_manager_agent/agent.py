@@ -34,6 +34,7 @@ def remove_image_uri_in_history(
     # image ID placeholder in the prompt
     #
     # The following code will modify the request sent to LLM
+    breakpoint()
     for content in llm_request.contents[:-1]:
         if content.role == "user":
             content.parts = [part for part in content.parts if part.file_data is None]

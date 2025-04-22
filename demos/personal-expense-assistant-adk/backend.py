@@ -15,6 +15,11 @@ from utils import (
 )
 from schema import ImageData, ChatRequest, ChatResponse
 import logger
+from google.adk.artifacts import GcsArtifactService
+from settings import get_settings
+
+SETTINGS = get_settings()
+APP_NAME = "expense_manager_app"
 
 
 # Application state to hold service contexts
@@ -22,6 +27,7 @@ class AppContexts(SimpleNamespace):
     """A class to hold application contexts with attribute access"""
 
     session_service: InMemorySessionService = None
+    artifact_service: GcsArtifactService = None
     expense_manager_agent_runner: Runner = None
 
 
@@ -33,10 +39,14 @@ app_contexts = AppContexts()
 async def lifespan(app: FastAPI):
     # Initialize service contexts during application startup
     app_contexts.session_service = InMemorySessionService()
+    app_contexts.artifact_service = GcsArtifactService(
+        bucket_name=SETTINGS.STORAGE_BUCKET_NAME
+    )
     app_contexts.expense_manager_agent_runner = Runner(
         agent=expense_manager_agent,  # The agent we want to run
-        app_name="expense_manager_app",  # Associates runs with our app
+        app_name=APP_NAME,  # Associates runs with our app
         session_service=app_contexts.session_service,  # Uses our session manager
+        artifact_service=app_contexts.artifact_service,  # Uses our artifact manager
     )
 
     logger.info("Application started successfully")
@@ -61,7 +71,11 @@ async def chat(
 ) -> ChatResponse:
     """Process chat request and get response from the agent"""
     # Prepare the user's message in ADK format
-    content = format_user_request_to_adk_content(request)
+    content = format_user_request_to_adk_content(
+        request=request,
+        app_name=APP_NAME,
+        artifact_service=app_context.artifact_service,
+    )
 
     final_response_text = "Agent did not produce a final response."  # Default
 
@@ -71,10 +85,10 @@ async def chat(
 
     # Create session if it doesn't exist
     if not app_context.session_service.get_session(
-        app_name="expense_manager_app", user_id=user_id, session_id=session_id
+        app_name=APP_NAME, user_id=user_id, session_id=session_id
     ):
         app_context.session_service.create_session(
-            app_name="expense_manager_app", user_id=user_id, session_id=session_id
+            app_name=APP_NAME, user_id=user_id, session_id=session_id
         )
 
     try:
