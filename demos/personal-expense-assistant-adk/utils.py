@@ -7,6 +7,7 @@ import re
 from schema import ChatRequest
 from google.genai import types
 import hashlib
+import json
 
 SETTINGS = get_settings()
 
@@ -157,34 +158,54 @@ def sanitize_image_id(image_id: str) -> str:
 def extract_attachment_ids_and_sanitize_response(
     response_text: str,
 ) -> tuple[str, list[str]]:
-    """Extract image hash IDs from <attachments> tags and remove those tags from the response.
+    """Extract image hash IDs from JSON code block in the FINAL RESPONSE section.
 
     Args:
-        response_text: The response text from the LLM.
+        response_text: The response text from the LLM in markdown format.
 
     Returns:
         tuple[str, list[str]]: A tuple containing the sanitized response text and list of image hash IDs.
     """
-    # Look for <attachments> tag
-    pattern = r"<attachments>([^<]+)</attachments>"
+    # JSON code block pattern, looking for ```json { ... } ```
+    json_block_pattern = r"```json\s*({[^`]*?})\s*```"
+    json_match = re.search(json_block_pattern, response_text, re.DOTALL)
 
-    # Find all occurrences of the pattern
-    matches = re.findall(pattern, response_text)
     all_attachments_hash_ids = []
+    sanitized_text = response_text
 
-    for match in matches:
-        content = match.strip()
+    if json_match:
+        json_str = json_match.group(1).strip()
+        try:
+            # Try to parse the JSON
+            json_data = json.loads(json_str)
 
-        # Split by commas and strip whitespace
-        hash_ids = [
-            sanitize_image_id(hash_id.strip()) for hash_id in content.split(",")
-        ]
-        all_attachments_hash_ids.extend(
-            [hash_id for hash_id in hash_ids if hash_id]
-        )  # Filter out empty strings
+            # Extract attachment IDs if they exist in the expected format
+            if isinstance(json_data, dict) and "attachments" in json_data:
+                attachments = json_data["attachments"]
+                if isinstance(attachments, list):
+                    # Extract image IDs from each attachment string
+                    for attachment_id in attachments:
+                        all_attachments_hash_ids.append(
+                            sanitize_image_id(attachment_id)
+                        )
 
-    # Remove all <attachments> tags from the response
-    sanitized_text = re.sub(pattern, "", response_text)
+            # Remove the JSON block from the response
+            sanitized_text = response_text.replace(json_match.group(0), "")
+        except json.JSONDecodeError:
+            # If JSON parsing fails, try to extract image IDs directly using regex
+            id_pattern = r"\[IMAGE-ID\s+([^\]]+)\]"
+            hash_id_matches = re.findall(id_pattern, json_str)
+            all_attachments_hash_ids = [
+                sanitize_image_id(match.strip())
+                for match in hash_id_matches
+                if match.strip()
+            ]
+
+            # Remove the JSON block from the response
+            sanitized_text = response_text.replace(json_match.group(0), "")
+
+    # Clean up the sanitized text
+    sanitized_text = sanitized_text.strip()
 
     return sanitized_text, all_attachments_hash_ids
 
@@ -193,22 +214,42 @@ def extract_thinking_process(response_text: str) -> tuple[str, str]:
     """Extract thinking process from response text and sanitize the response.
 
     Args:
-        response_text: The response text from the LLM.
+        response_text: The response text from the LLM in markdown format.
 
     Returns:
         tuple[str, str]: A tuple containing the sanitized response text and extracted thinking process.
     """
-    # Look for content between <thinking> and </thinking>
-    pattern = r"<thinking>(.+?)</thinking>"
+    # Look for the THINKING PROCESS section
+    thinking_pattern = r"#\s*THINKING PROCESS[\s\S]*?(?=#\s*FINAL RESPONSE|\Z)"  # Match until FINAL RESPONSE heading or end
+    thinking_match = re.search(thinking_pattern, response_text, re.MULTILINE)
 
-    # Search for the pattern
-    match = re.search(pattern, response_text, re.DOTALL)
     thinking_process = ""
 
-    if match:
-        thinking_process = match.group(1).strip()
+    if thinking_match:
+        # Extract the content without the heading
+        thinking_content = thinking_match.group(0)
+        # Remove the heading and get just the content
+        thinking_process = re.sub(
+            r"^#\s*THINKING PROCESS\s*", "", thinking_content, flags=re.MULTILINE
+        ).strip()
 
-    # Remove the thinking process from the response
-    sanitized_text = re.sub(pattern, "", response_text, flags=re.DOTALL)
+        # Remove the THINKING PROCESS section from the response
+        sanitized_text = response_text.replace(thinking_content, "")
+    else:
+        sanitized_text = response_text
+
+    # Extract just the FINAL RESPONSE section as the sanitized text if it exists
+    final_response_pattern = r"#\s*FINAL RESPONSE[\s\S]*?(?=#\s*ATTACHMENTS|\Z)"  # Match until ATTACHMENTS heading or end
+    final_response_match = re.search(
+        final_response_pattern, sanitized_text, re.MULTILINE
+    )
+
+    if final_response_match:
+        # Extract the content without the heading
+        final_response_content = final_response_match.group(0)
+        # Remove the heading and get just the content
+        sanitized_text = re.sub(
+            r"^#\s*FINAL RESPONSE\s*", "", final_response_content, flags=re.MULTILINE
+        ).strip()
 
     return sanitized_text, thinking_process
