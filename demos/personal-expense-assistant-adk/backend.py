@@ -7,6 +7,7 @@ from typing import AsyncIterator
 from types import SimpleNamespace
 import uvicorn
 from contextlib import asynccontextmanager
+import asyncio
 from utils import (
     extract_attachment_ids_and_sanitize_response,
     download_image_from_gcs,
@@ -71,7 +72,8 @@ async def chat(
 ) -> ChatResponse:
     """Process chat request and get response from the agent"""
     # Prepare the user's message in ADK format
-    content = format_user_request_to_adk_content(
+    content = await asyncio.to_thread(
+        format_user_request_to_adk_content,
         request=request,
         app_name=APP_NAME,
         artifact_service=app_context.artifact_service,
@@ -124,7 +126,8 @@ async def chat(
         # Download images from GCS and replace hash IDs with base64 data
         for image_hash_id in attachment_ids:
             # Download image data and get MIME type
-            result = download_image_from_gcs(
+            result = await asyncio.to_thread(
+                download_image_from_gcs,
                 artifact_service=app_context.artifact_service,
                 image_hash=image_hash_id,
                 app_name=APP_NAME,
