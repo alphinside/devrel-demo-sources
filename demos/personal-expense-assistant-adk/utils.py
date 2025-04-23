@@ -113,7 +113,6 @@ def download_image_from_gcs(
     Returns:
         tuple[str, str] | None: A tuple containing (base64_encoded_data, mime_type), or None if download fails
     """
-    # TODO: Refactor using artifact service
     try:
         artifact = artifact_service.load_artifact(
             app_name=app_name,
