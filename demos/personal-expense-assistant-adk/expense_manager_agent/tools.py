@@ -166,6 +166,8 @@ def search_receipts_by_metadata_filter(
         query = COLLECTION
 
         # Build the composite query by properly chaining conditions
+        # Notes that this demo assume 1 user only,
+        # need to refactor the query for multiple user
         filters = [
             FieldFilter("transaction_time", ">=", start_time),
             FieldFilter("transaction_time", "<=", end_time),
@@ -223,6 +225,8 @@ def search_relevant_receipts_by_natural_language_query(
         )
         query_embedding = result.embeddings[0].values
 
+        # Notes that this demo assume 1 user only,
+        # need to refactor the query for multiple user
         vector_query = COLLECTION.find_nearest(
             vector_field=EMBEDDING_FIELD_NAME,
             query_vector=Vector(query_embedding),
@@ -266,6 +270,8 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
     image_id = sanitize_image_id(image_id)
 
     # Query the receipts collection for documents with matching receipt_id (image_id)
+    # Notes that this demo assume 1 user only,
+    # need to refactor the query for multiple user
     query = COLLECTION.where(filter=FieldFilter("receipt_id", "==", image_id)).limit(1)
     docs = list(query.stream())
 
