@@ -124,7 +124,13 @@ async def chat(
         # Download images from GCS and replace hash IDs with base64 data
         for image_hash_id in attachment_ids:
             # Download image data and get MIME type
-            result = download_image_from_gcs(image_hash_id)
+            result = download_image_from_gcs(
+                artifact_service=app_context.artifact_service,
+                image_hash=image_hash_id,
+                app_name=APP_NAME,
+                user_id=user_id,
+                session_id=session_id,
+            )
             if result:
                 base64_data, mime_type = result
                 base64_attachments.append(
