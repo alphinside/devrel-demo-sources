@@ -7,7 +7,6 @@ from google.cloud.firestore_v1.base_query import And
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from settings import get_settings
 from google import genai
-from utils import sanitize_image_id
 
 SETTINGS = get_settings()
 DB_CLIENT = firestore.Client(
@@ -30,6 +29,14 @@ Purchased Items:
 {purchased_items}
 Receipt Image ID: {receipt_id}
 """
+
+
+def sanitize_image_id(image_id: str) -> str:
+    """Sanitize image ID by removing any leading/trailing whitespace."""
+    if image_id.startswith("[IMAGE-"):
+        image_id = image_id.split("ID ")[1].split("]")[0]
+
+    return image_id.strip()
 
 
 def store_receipt_data(
