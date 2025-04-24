@@ -23,7 +23,7 @@ def store_uploaded_image_as_artifact(
     user_id: str,
     session_id: str,
     image_data: ImageData,
-) -> tuple[str, str]:
+) -> tuple[str, bytes]:
     """
     Store an uploaded image as an artifact in Google Cloud Storage.
 
@@ -35,9 +35,10 @@ def store_uploaded_image_as_artifact(
         image_data: The image data to store
 
     Returns:
-        tuple[str, str]: A tuple containing the image hash ID and the artifact URI
+        tuple[str, bytes]: A tuple containing the image hash ID and the image byte
     """
 
+    # Decode the base64 image data and use it to generate a hash id
     image_byte = base64.b64decode(image_data.serialized_image)
     hasher = hashlib.sha256(image_byte)
     image_hash_id = hasher.hexdigest()[:12]
@@ -51,19 +52,9 @@ def store_uploaded_image_as_artifact(
     if artifact_versions:
         logger.info(f"Image {image_hash_id} already exists in GCS, skipping upload")
 
-        artifact_uri = construct_full_artifact_uri(
-            artifact_service._get_blob_name(
-                app_name=app_name,
-                user_id=user_id,
-                session_id=session_id,
-                filename=image_hash_id,
-                version=max(artifact_versions),
-            )
-        )
+        return image_hash_id, image_byte
 
-        return image_hash_id, artifact_uri
-
-    artifact_version = artifact_service.save_artifact(
+    artifact_service.save_artifact(
         app_name=app_name,
         user_id=user_id,
         session_id=session_id,
@@ -73,22 +64,7 @@ def store_uploaded_image_as_artifact(
         ),
     )
 
-    artifact_uri = construct_full_artifact_uri(
-        artifact_service._get_blob_name(
-            app_name=app_name,
-            user_id=user_id,
-            session_id=session_id,
-            filename=image_hash_id,
-            version=artifact_version,
-        )
-    )
-
-    return image_hash_id, artifact_uri
-
-
-def construct_full_artifact_uri(blob_name: str) -> str:
-    """Construct the full artifact URI from the blob name."""
-    return f"gs://{SETTINGS.STORAGE_BUCKET_NAME}/{blob_name}"
+    return image_hash_id, image_byte
 
 
 def download_image_from_gcs(
@@ -136,7 +112,7 @@ def download_image_from_gcs(
         return None
 
 
-def format_user_request_to_adk_content(
+def format_user_request_to_adk_content_and_store_artifacts(
     request: ChatRequest, app_name: str, artifact_service: GcsArtifactService
 ) -> types.Content:
     """Format a user request into ADK Content format.
@@ -154,8 +130,9 @@ def format_user_request_to_adk_content(
 
     # Handle image files if present
     for data in request.files:
-        # Process the image and convert to string placeholder
-        image_hash_id, artifact_uri = store_uploaded_image_as_artifact(
+        # Process the image and add string placeholder
+
+        image_hash_id, image_byte = store_uploaded_image_as_artifact(
             artifact_service=artifact_service,
             app_name=app_name,
             user_id=request.user_id,
@@ -163,12 +140,10 @@ def format_user_request_to_adk_content(
             image_data=data,
         )
 
-        # Add gs:// URI to parts
+        # Add inline data part
         parts.append(
             types.Part(
-                file_data=types.FileData(
-                    file_uri=artifact_uri, mime_type=data.mime_type
-                )
+                inline_data=types.Blob(mime_type=data.mime_type, data=image_byte)
             )
         )
 
@@ -252,14 +227,22 @@ def extract_attachment_ids_and_sanitize_response(
 def extract_thinking_process(response_text: str) -> tuple[str, str]:
     """Extract thinking process from response text and sanitize the response.
 
+    The response expected should e like this
+
+    # THINKING PROCESS
+    <thinking process>
+
+    # FINAL RESPONSE
+    <final response>
+
     Args:
         response_text: The response text from the LLM in markdown format.
 
     Returns:
         tuple[str, str]: A tuple containing the sanitized response text and extracted thinking process.
     """
-    # Look for the THINKING PROCESS section
-    thinking_pattern = r"#\s*THINKING PROCESS[\s\S]*?(?=#\s*FINAL RESPONSE|\Z)"  # Match until FINAL RESPONSE heading or end
+    # Match until FINAL RESPONSE heading or end
+    thinking_pattern = r"#\s*THINKING PROCESS[\s\S]*?(?=#\s*FINAL RESPONSE|\Z)"
     thinking_match = re.search(thinking_pattern, response_text, re.MULTILINE)
 
     thinking_process = ""
