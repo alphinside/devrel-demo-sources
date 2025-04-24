@@ -28,9 +28,11 @@ This project contains demo code to deploy a personal assistant capable to extrac
                            cloudresourcemanager.googleapis.com
     ```
 
-- Install [uv](https://docs.astral.sh/uv/getting-started/installation/) and prepare the python env
+- Install [uv](https://docs.astral.sh/uv/getting-started/installation/) dependencies and prepare the python env
 
     ```shell
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    uv python install 3.12
     uv sync --frozen
     ```
 
