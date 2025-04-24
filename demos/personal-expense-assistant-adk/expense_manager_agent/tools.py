@@ -261,7 +261,7 @@ def get_receipt_data_by_image_id(image_id: str) -> Dict[str, Any]:
 
     Args:
         image_id (str): The unique identifier of the receipt image. For example, if the placeholder is
-            [IMAGE-ID 12345] or [IMAGE-POSITION 0-ID 12345], the ID to use is 12345.
+            [IMAGE-ID 12345], the ID to use is 12345.
 
     Returns:
         Dict[str, Any]: A dictionary containing the receipt data with the following keys:
