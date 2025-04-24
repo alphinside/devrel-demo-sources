@@ -12,7 +12,7 @@ from utils import (
     extract_attachment_ids_and_sanitize_response,
     download_image_from_gcs,
     extract_thinking_process,
-    format_user_request_to_adk_content,
+    format_user_request_to_adk_content_and_store_artifacts,
 )
 from schema import ImageData, ChatRequest, ChatResponse
 import logger
@@ -71,9 +71,10 @@ async def chat(
     app_context: AppContexts = Depends(get_app_contexts),
 ) -> ChatResponse:
     """Process chat request and get response from the agent"""
-    # Prepare the user's message in ADK format
+
+    # Prepare the user's message in ADK format and store image artifacts
     content = await asyncio.to_thread(
-        format_user_request_to_adk_content,
+        format_user_request_to_adk_content_and_store_artifacts,
         request=request,
         app_name=APP_NAME,
         artifact_service=app_context.artifact_service,
