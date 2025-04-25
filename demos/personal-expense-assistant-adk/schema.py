@@ -20,6 +20,8 @@ class ChatRequest(BaseModel):
     Attributes:
         text: The text content of the message.
         files: List of image data objects
+        session_id: Session identifier for the conversation.
+        user_id: User identifier for the conversation.
     """
 
     text: str
@@ -33,6 +35,7 @@ class ChatResponse(BaseModel):
 
     Attributes:
         response: The text response from the model.
+        thinking_process: Optional thinking process of the model.
         attachments: List of image data to be displayed to the user.
         error: Optional error message if something went wrong.
     """
