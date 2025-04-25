@@ -27,8 +27,10 @@ def modify_image_data_in_history(
                     modified_content_parts.append(part)
                     continue
 
-                if (idx + 1 >= len(content.parts)) or (
-                    not content.parts[idx + 1].text.startswith("[IMAGE-ID ")
+                if (
+                    (idx + 1 >= len(content.parts))
+                    or (content.parts[idx + 1].text is None)
+                    or (not content.parts[idx + 1].text.startswith("[IMAGE-ID "))
                 ):
                     # Generate hash ID for the image and add a placeholder
                     image_data = part.inline_data.data
