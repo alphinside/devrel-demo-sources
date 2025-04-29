@@ -1,7 +1,7 @@
 from common.server import A2AServer
 from common.types import AgentCard, AgentCapabilities, AgentSkill
 from common.utils.push_notification_auth import PushNotificationSenderAuth
-from agents.langgraph.task_manager import AgentTaskManager
+from remote_seller_agents.pizza_agent.task_manager import AgentTaskManager
 from remote_seller_agents.pizza_agent.agent import PizzaSellerAgent
 import click
 import logging

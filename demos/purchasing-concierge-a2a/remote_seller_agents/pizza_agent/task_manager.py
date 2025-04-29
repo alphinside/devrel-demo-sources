@@ -92,6 +92,9 @@ class AgentTaskManager(InMemoryTaskManager):
             raise ValueError(f"Error invoking agent: {e}")
         return await self._process_agent_response(request, agent_response)
 
+    async def on_send_task_subscribe(self, *args, **kwargs):
+        raise NotImplementedError()
+
     async def _process_agent_response(
         self, request: SendTaskRequest, agent_response: dict
     ) -> SendTaskResponse:
