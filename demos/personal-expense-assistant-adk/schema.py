@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
@@ -44,3 +44,13 @@ class ChatResponse(BaseModel):
     thinking_process: str = ""
     attachments: List[ImageData] = []
     error: Optional[str] = None
+
+
+class OutputFormat(BaseModel):
+    thinking_process: str = Field(
+        description="The thought process of the expense manager agent."
+    )
+    final_response: str = Field(
+        description="The response to user query of the expense manager agent."
+    )
+    attachment_ids: list[str] = Field([], description="The list of attachments IDs.")

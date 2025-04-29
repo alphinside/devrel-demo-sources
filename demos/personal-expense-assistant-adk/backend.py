@@ -1,23 +1,24 @@
 from expense_manager_agent.agent import root_agent as expense_manager_agent
+from structure_formatting_agent.agent import root_agent as structure_formatting_agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
 from google.adk.events import Event
 from fastapi import FastAPI, Body, Depends
 from typing import AsyncIterator
 from types import SimpleNamespace
+from google.genai import types
 import uvicorn
 from contextlib import asynccontextmanager
 import asyncio
 from utils import (
-    extract_attachment_ids_and_sanitize_response,
     download_image_from_gcs,
-    extract_thinking_process,
     format_user_request_to_adk_content_and_store_artifacts,
 )
-from schema import ImageData, ChatRequest, ChatResponse
+from schema import ImageData, ChatRequest, ChatResponse, OutputFormat
 import logger
 from google.adk.artifacts import GcsArtifactService
 from settings import get_settings
+import json
 
 SETTINGS = get_settings()
 APP_NAME = "expense_manager_app"
@@ -30,6 +31,7 @@ class AppContexts(SimpleNamespace):
     session_service: InMemorySessionService = None
     artifact_service: GcsArtifactService = None
     expense_manager_agent_runner: Runner = None
+    structure_formatting_agent_runner: Runner = None
 
 
 # Initialize application state
@@ -44,10 +46,15 @@ async def lifespan(app: FastAPI):
         bucket_name=SETTINGS.STORAGE_BUCKET_NAME
     )
     app_contexts.expense_manager_agent_runner = Runner(
-        agent=expense_manager_agent,  # The agent we want to run
-        app_name=APP_NAME,  # Associates runs with our app
-        session_service=app_contexts.session_service,  # Uses our session manager
-        artifact_service=app_contexts.artifact_service,  # Uses our artifact manager
+        agent=expense_manager_agent,
+        app_name=APP_NAME,
+        session_service=app_contexts.session_service,
+        artifact_service=app_contexts.artifact_service,
+    )
+    app_contexts.structure_formatting_agent_runner = Runner(
+        agent=structure_formatting_agent,
+        app_name=APP_NAME,
+        session_service=app_contexts.session_service,
     )
 
     logger.info("Application started successfully")
@@ -65,6 +72,59 @@ async def get_app_contexts() -> AppContexts:
 app = FastAPI(title="Personal Expense Assistant API", lifespan=lifespan)
 
 
+async def process_agent_response(
+    session_service: InMemorySessionService,
+    runner: Runner,
+    user_id: str,
+    session_id: str,
+    content: types.Content,
+) -> str:
+    """
+    Process the message with the agent and extract the final response.
+
+    Args:
+        app_context: The application context containing agent runners
+        user_id: The user ID for the session
+        session_id: The session ID for the conversation
+        content: The message content to process
+
+    Returns:
+        The final response text from the agent
+    """
+    # Type annotation: runner.run_async returns an AsyncIterator[Event]
+    # Create session if it doesn't exist
+    if not session_service.get_session(
+        app_name=APP_NAME,
+        user_id=user_id,
+        session_id=f"{session_id}_{runner.agent.name}",
+    ):
+        session_service.create_session(
+            app_name=APP_NAME,
+            user_id=user_id,
+            session_id=f"{session_id}_{runner.agent.name}",
+        )
+
+    events_iterator: AsyncIterator[Event] = runner.run_async(
+        user_id=user_id,
+        session_id=f"{session_id}_{runner.agent.name}",
+        new_message=content,
+    )
+    final_response_text = ""
+    async for event in events_iterator:  # event has type Event
+        # Key Concept: is_final_response() marks the concluding message for the turn
+        if event.is_final_response():
+            if event.content and event.content.parts:
+                # Extract text from the first part
+                final_response_text = event.content.parts[0].text
+            break  # Stop processing events once the final response is found
+
+    logger.info(
+        f"Received final response from agent {runner.agent.name}",
+        raw_final_response=final_response_text,
+    )
+    return final_response_text
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest = Body(...),
@@ -73,7 +133,7 @@ async def chat(
     """Process chat request and get response from the agent"""
 
     # Prepare the user's message in ADK format and store image artifacts
-    content = await asyncio.to_thread(
+    content: types.Content = await asyncio.to_thread(
         format_user_request_to_adk_content_and_store_artifacts,
         request=request,
         app_name=APP_NAME,
@@ -86,46 +146,36 @@ async def chat(
     session_id = request.session_id
     user_id = request.user_id
 
-    # Create session if it doesn't exist
-    if not app_context.session_service.get_session(
-        app_name=APP_NAME, user_id=user_id, session_id=session_id
-    ):
-        app_context.session_service.create_session(
-            app_name=APP_NAME, user_id=user_id, session_id=session_id
-        )
-
     try:
-        # Process the message with the agent
-        # Type annotation: runner.run_async returns an AsyncIterator[Event]
-        events_iterator: AsyncIterator[Event] = (
-            app_context.expense_manager_agent_runner.run_async(
-                user_id=user_id, session_id=session_id, new_message=content
-            )
+        # Process the message with the agent and get the final response
+        final_response_text = await process_agent_response(
+            session_service=app_context.session_service,
+            runner=app_context.expense_manager_agent_runner,
+            user_id=user_id,
+            session_id=session_id,
+            content=content,
         )
-        async for event in events_iterator:  # event has type Event
-            # Key Concept: is_final_response() marks the concluding message for the turn
-            if event.is_final_response():
-                if event.content and event.content.parts:
-                    # Extract text from the first part
-                    final_response_text = event.content.parts[0].text
-                elif event.actions and event.actions.escalate:
-                    # Handle potential errors/escalations
-                    final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
-                break  # Stop processing events once the final response is found
 
-        logger.info(
-            "Received final response from agent", raw_final_response=final_response_text
+        structured_response = await process_agent_response(
+            session_service=app_context.session_service,
+            runner=app_context.structure_formatting_agent_runner,
+            user_id=user_id,
+            session_id=session_id,
+            content=types.Content(
+                parts=[
+                    types.Part(
+                        text=f"Format the following response into JSON:\n\n{final_response_text}"
+                    )
+                ]
+            ),
         )
+
+        output_format = OutputFormat(**json.loads(structured_response))
 
         # Extract and process any attachments and thinking process in the response
         base64_attachments = []
-        sanitized_text, attachment_ids = extract_attachment_ids_and_sanitize_response(
-            final_response_text
-        )
-        sanitized_text, thinking_process = extract_thinking_process(sanitized_text)
-
         # Download images from GCS and replace hash IDs with base64 data
-        for image_hash_id in attachment_ids:
+        for image_hash_id in output_format.attachment_ids:
             # Download image data and get MIME type
             result = await asyncio.to_thread(
                 download_image_from_gcs,
@@ -143,14 +193,14 @@ async def chat(
 
         logger.info(
             "Processed response with attachments",
-            sanitized_response=sanitized_text,
-            thinking_process=thinking_process,
-            attachment_ids=attachment_ids,
+            sanitized_response=output_format.final_response,
+            thinking_process=output_format.thinking_process,
+            attachment_ids=output_format.attachment_ids,
         )
 
         return ChatResponse(
-            response=sanitized_text,
-            thinking_process=thinking_process,
+            response=output_format.final_response,
+            thinking_process=output_format.thinking_process,
             attachments=base64_attachments,
         )
 
