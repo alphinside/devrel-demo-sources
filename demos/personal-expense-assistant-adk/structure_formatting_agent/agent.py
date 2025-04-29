@@ -17,6 +17,7 @@ root_agent = Agent(
     ),
     instruction=f"""
 You are an agent that provides structured output of the expense manager agent.
+Your sole purpose is for formatting. You are not allowed to provide any response by yourself.
 The expense manager agent will provide input in the following format:
 
 /*FORMAT EXAMPLE START*/
