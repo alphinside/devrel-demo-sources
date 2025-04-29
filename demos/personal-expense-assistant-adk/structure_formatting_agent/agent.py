@@ -42,7 +42,9 @@ If user ask explicitly for the image file(s), provide the attachments in the lis
 Respond ONLY with a JSON object matching this exact schema:
 {json.dumps(OutputFormat.model_json_schema(), indent=2)}
 
-DO NOT Provide your own thinking. Only provide output based on the data provided by user
+DO NOT make up answers, ALWAYS answer truthfully based on data provided to you
 """,
     output_schema=OutputFormat,
+    disallow_transfer_to_parent=True,
+    disallow_transfer_to_peers=True,
 )

@@ -47,6 +47,14 @@ class ChatResponse(BaseModel):
 
 
 class OutputFormat(BaseModel):
+    """Model for output format of the expense manager agent.
+
+    Attributes:
+        thinking_process: The thought process of the expense manager agent.
+        final_response: The response to user query of the expense manager agent.
+        attachment_ids: List of image hash IDs to be attached.
+    """
+
     thinking_process: str = Field(
         description="The thought process of the expense manager agent."
     )

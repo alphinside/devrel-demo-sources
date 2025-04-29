@@ -96,17 +96,17 @@ async def process_agent_response(
     if not session_service.get_session(
         app_name=APP_NAME,
         user_id=user_id,
-        session_id=f"{session_id}_{runner.agent.name}",
+        session_id=session_id,
     ):
         session_service.create_session(
             app_name=APP_NAME,
             user_id=user_id,
-            session_id=f"{session_id}_{runner.agent.name}",
+            session_id=session_id,
         )
 
     events_iterator: AsyncIterator[Event] = runner.run_async(
         user_id=user_id,
-        session_id=f"{session_id}_{runner.agent.name}",
+        session_id=session_id,
         new_message=content,
     )
     final_response_text = ""
@@ -164,7 +164,7 @@ async def chat(
             content=types.Content(
                 parts=[
                     types.Part(
-                        text=f"Format the following response into JSON:\n\n{final_response_text}"
+                        text=f"Format the following expense_manager_agent response into JSON:\n\n{final_response_text}"
                     )
                 ]
             ),
