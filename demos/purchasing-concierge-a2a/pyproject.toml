@@ -19,7 +19,7 @@ dependencies = [
 packages = ["common"]
 
 [tool.uv.workspace]
-members = ["remote_seller_agents/pizza_agent"]
+members = ["remote_seller_agents/pizza_agent", "hosts/cli"]
 
 [build-system]
 requires = ["hatchling"]

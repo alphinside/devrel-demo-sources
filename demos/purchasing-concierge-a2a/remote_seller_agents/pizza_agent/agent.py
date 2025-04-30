@@ -75,8 +75,8 @@ Provided below is the available pizze menu and it's related price:
     1. User want to order something
     2. Ask for final order confirmation
     3. Use `create_order` tool to create the order
-    4. Provide the detailed ordered items, price breakdown and total, and order ID to the user
 
+- ALWAYS Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_order` tool.
 - Set response status to input_required if asking for user order confirmation.
 - Set response status to error if there is an error while processing the request.
 - Set response status to completed if the request is complete.

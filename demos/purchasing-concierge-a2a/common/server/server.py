@@ -65,6 +65,7 @@ class A2AServer:
         try:
             body = await request.json()
             json_rpc_request = A2ARequest.validate_python(body)
+            print(json_rpc_request)
 
             if isinstance(json_rpc_request, GetTaskRequest):
                 result = await self.task_manager.on_get_task(json_rpc_request)

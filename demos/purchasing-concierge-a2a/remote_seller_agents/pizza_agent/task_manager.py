@@ -66,6 +66,8 @@ class AgentTaskManager(InMemoryTaskManager):
         if validation_error:
             return SendTaskResponse(id=request.id, error=validation_error.error)
 
+        await self.upsert_task(request.params)
+
         if request.params.pushNotification:
             if not await self.set_push_notification_info(
                 request.params.id, request.params.pushNotification
@@ -77,7 +79,6 @@ class AgentTaskManager(InMemoryTaskManager):
                     ),
                 )
 
-        await self.upsert_task(request.params)
         task = await self.update_store(
             request.params.id, TaskStatus(state=TaskState.WORKING), None
         )
