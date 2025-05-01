@@ -1,11 +1,12 @@
 from common.server import A2AServer
-from common.types import AgentCard, AgentCapabilities, AgentSkill
+from common.types import AgentCard, AgentCapabilities, AgentSkill, AgentAuthentication
 from common.utils.push_notification_auth import PushNotificationSenderAuth
 from remote_seller_agents.pizza_agent.task_manager import AgentTaskManager
 from remote_seller_agents.pizza_agent.agent import PizzaSellerAgent
 import click
 import logging
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -28,10 +29,11 @@ def main(host, port):
             examples=["I want to order 2 pepperoni pizzas"],
         )
         agent_card = AgentCard(
-            name="Pizza Seller Agent",
+            name="pizza_seller_agent",
             description="Helps with creating pizza orders",
             url=f"http://{host}:{port}/",
             version="1.0.0",
+            authentication=AgentAuthentication(schemes=["Bearer"]),
             defaultInputModes=PizzaSellerAgent.SUPPORTED_CONTENT_TYPES,
             defaultOutputModes=PizzaSellerAgent.SUPPORTED_CONTENT_TYPES,
             capabilities=capabilities,
@@ -48,6 +50,7 @@ def main(host, port):
             ),
             host=host,
             port=port,
+            api_key=os.environ.get("API_KEY"),
         )
 
         server.app.add_route(
