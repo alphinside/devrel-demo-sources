@@ -62,7 +62,7 @@ Do not attempt to answer unrelated questions or use tools for other purposes.
 
 # CONTEXT
 
-Received user prompt: {user_prompt}
+Received user query: {user_prompt}
 Session ID: {session_id}
 
 Provided below is the available burger menu and it's related price:
@@ -73,10 +73,10 @@ Provided below is the available burger menu and it's related price:
 
 # RULES
 
-- If user want to order something, strictly follow the following steps:
+- If user want to order something, strictly follow the following order:
     1. User want to order something
-    2. Always ask for final order confirmation by specifying all the ordered items and total price 
-    3. Use `create_order` tool to create the order
+    2. Always re-clarify the order and ask confirmation by specifying all the ordered items and total price 
+    3. Use `create_order` tool to create the order after receiving user confirmation after re-clarification
 
 - ALWAYS Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_order` tool.
 - Set response status to input_required if asking for user order confirmation.
@@ -125,21 +125,12 @@ Provided below is the available burger menu and it's related price:
             agents=[self.burger_agent],
             verbose=False,
             process=Process.sequential,
-            memory=True,
-            embedder={
-                "provider": "vertexai",
-                "config": {
-                    "project_id": os.getenv("GCLOUD_PROJECT_ID"),
-                    "region": os.getenv("GCLOUD_LOCATION"),
-                    "model_name": "text-embedding-005",
-                },
-            },
         )
 
     def invoke(self, query, sessionId) -> str:
         inputs = {"user_prompt": query, "session_id": sessionId}
         response = self.crew.kickoff(inputs)
-        return response
+        return self.get_agent_response(response)
 
     def get_agent_response(self, response):
         breakpoint()
@@ -174,9 +165,5 @@ Provided below is the available burger menu and it's related price:
 
 if __name__ == "__main__":
     agent = BurgerSellerAgent()
-    result = agent.invoke("show me the burger menu", "default_session")
-    print(result)
     result = agent.invoke("1 classic cheeseburger pls", "default_session")
-    print(result)
-    result = agent.invoke("okey", "default_session")
     print(result)
