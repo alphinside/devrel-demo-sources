@@ -1,0 +1,24 @@
+[project]
+name = "burger-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "purchasing-concierge-a2a",
+    "click>=8.1.8",
+    "httpx>=0.28.1",
+    "pydantic>=2.10.6",
+    "dotenv>=0.9.9",
+    "crewai>=0.118.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[tool.uv.sources]
+purchasing-concierge-a2a = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

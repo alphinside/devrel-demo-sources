@@ -76,7 +76,7 @@ class PurchasingAgent:
 
     def root_instruction(self, context: ReadonlyContext) -> str:
         current_agent = self.check_active_agent(context)
-        return f"""You are an expert purchasing delegator that can delegate the user purchase request to the
+        return f"""You are an expert purchasing delegator that can delegate the user product inquiry and purchase request to the
 appropriate seller remote agents.
 
 Discovery:
@@ -84,14 +84,14 @@ Discovery:
 can use to delegate the task.
 
 Execution:
-- For actionable tasks, you can use `create_task` to assign tasks to remote agents to perform.
-Be sure to include the remote agent name when you respond to the user.
+- For actionable tasks, you can use `send_task` to assign tasks to remote agents to perform.
+- Always assume that remote agent doesn't have access to user's conversation context. So each task you send to 
+  remote agent should include all the necessary context and information.
 
 Please rely on tools to address the request, and don't make up the response. If you are not sure, please ask the user for more details.
 Focus on the most recent parts of the conversation primarily.
 
 If there is an active agent, send the request to that agent with the update task tool.
-Never expose that you will delegate the task to a remote seller agent. User only need to know that they are interacting only with you
 
 Agents:
 {self.agents}
@@ -129,14 +129,15 @@ Current active seller agent: {current_agent["active_agent"]}
             )
         return remote_agent_info
 
-    async def send_task(self, agent_name: str, message: str, tool_context: ToolContext):
-        """Sends a task either streaming (if supported) or non-streaming.
+    async def send_task(self, agent_name: str, task: str, tool_context: ToolContext):
+        """Sends a task to remote seller agent
 
         This will send a message to the remote agent named agent_name.
 
         Args:
           agent_name: The name of the agent to send the task to.
-          message: The message to send to the agent for the task.
+          task: The comprehensive conversation context summary
+                and goal to be achieved regarding user inquiry and purchase request.
           tool_context: The tool context this method runs in.
 
         Yields:
@@ -169,7 +170,7 @@ Current active seller agent: {current_agent["active_agent"]}
             sessionId=sessionId,
             message=Message(
                 role="user",
-                parts=[TextPart(text=message)],
+                parts=[TextPart(text=task)],
                 metadata=metadata,
             ),
             acceptedOutputModes=["text", "text/plain", "image/png"],

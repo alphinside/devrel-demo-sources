@@ -23,6 +23,7 @@ packages = ["common"]
 [tool.uv.workspace]
 members = [
     "remote_seller_agents/pizza_agent",
+    "remote_seller_agents/burger_agent",
 ]
 
 [build-system]

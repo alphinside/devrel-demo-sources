@@ -5,6 +5,10 @@ from langgraph.checkpoint.memory import MemorySaver
 from typing import Literal
 from pydantic import BaseModel
 import uuid
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 memory = MemorySaver()
 
@@ -87,6 +91,8 @@ Provided below is the available pizza menu and it's related price:
     def __init__(self):
         self.model = ChatVertexAI(
             model="gemini-2.0-flash",
+            location=os.getenv("GCLOUD_LOCATION"),
+            project=os.getenv("GCLOUD_PROJECT_ID"),
         )
         self.tools = [create_order]
         self.graph = create_react_agent(
