@@ -1,6 +1,5 @@
 import gradio as gr
 from typing import List, Dict, Any
-from settings import get_settings
 from purchasing_concierge.agent import root_agent as purchasing_agent
 from google.adk.sessions import InMemorySessionService
 from google.adk.runners import Runner
@@ -8,8 +7,6 @@ from google.adk.events import Event
 from typing import AsyncIterator
 from google.genai import types
 from pprint import pformat
-
-SETTINGS = get_settings()
 
 APP_NAME = "purchasing_concierge_app"
 USER_ID = "default_user"
@@ -88,7 +85,7 @@ async def get_response_from_agent(
         yield [
             gr.ChatMessage(
                 role="assistant",
-                content=f"Error connecting to backend service: {str(e)}",
+                content=f"Error communicating with agent: {str(e)}",
             )
         ]
 

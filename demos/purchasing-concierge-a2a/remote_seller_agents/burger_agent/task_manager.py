@@ -14,7 +14,7 @@ from common.types import (
     InvalidParamsError,
 )
 from common.server.task_manager import InMemoryTaskManager
-from remote_seller_agents.pizza_agent.agent import PizzaSellerAgent
+from remote_seller_agents.burger_agent.agent import BurgerSellerAgent
 from common.utils.push_notification_auth import PushNotificationSenderAuth
 import common.server.utils as utils
 from typing import Union
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class AgentTaskManager(InMemoryTaskManager):
     def __init__(
         self,
-        agent: PizzaSellerAgent,
+        agent: BurgerSellerAgent,
         notification_sender_auth: PushNotificationSenderAuth,
     ):
         super().__init__()
@@ -39,12 +39,12 @@ class AgentTaskManager(InMemoryTaskManager):
         task_send_params: TaskSendParams = request.params
         if not utils.are_modalities_compatible(
             task_send_params.acceptedOutputModes,
-            PizzaSellerAgent.SUPPORTED_CONTENT_TYPES,
+            BurgerSellerAgent.SUPPORTED_CONTENT_TYPES,
         ):
             logger.warning(
                 "Unsupported output mode. Received %s, Support %s",
                 task_send_params.acceptedOutputModes,
-                PizzaSellerAgent.SUPPORTED_CONTENT_TYPES,
+                BurgerSellerAgent.SUPPORTED_CONTENT_TYPES,
             )
             return utils.new_incompatible_types_error(request.id)
 

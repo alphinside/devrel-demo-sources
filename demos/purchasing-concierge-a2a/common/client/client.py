@@ -1,4 +1,5 @@
 import httpx
+import base64
 from typing import Any, AsyncIterable
 from common.types import (
     AgentCard,
@@ -26,7 +27,9 @@ class A2AClient:
                 if agent_card.authentication.schemes[0].lower() == "bearer":
                     self.auth_header = f"Bearer {auth}"
                 elif agent_card.authentication.schemes[0].lower() == "basic":
-                    self.auth_header = f"Basic {auth}"
+                    # Encode auth string to base64 for Basic authentication
+                    encoded_auth = base64.b64encode(auth.encode()).decode()
+                    self.auth_header = f"Basic {encoded_auth}"
                 else:
                     raise ValueError("Unsupported authentication scheme")
 

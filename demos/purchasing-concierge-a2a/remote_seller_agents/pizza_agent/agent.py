@@ -33,9 +33,9 @@ class Order(BaseModel):
 
 
 @tool
-def create_order(order_items: list[OrderItem]) -> str:
+def create_pizza_order(order_items: list[OrderItem]) -> str:
     """
-    Creates a new order with the given order items.
+    Creates a new pizza order with the given order items.
 
     Args:
         order_items: List of order items to be added to the order.
@@ -75,10 +75,10 @@ Provided below is the available pizza menu and it's related price:
 
 # RULES
 
-- If user want to order something, strictly follow the following order:
-    1. If user want to order something, always ask for clarification by specifying all the ordered items and total price 
-    2. Use `create_order` tool to create the order after receiving user confirmation after re-clarification
-    3. Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_order` tool.
+- If user want to do something, you will be following this order:
+    1. Ensure the user already confirmed the order and total price. Sometime this confirmation is already given in the user query.
+    2. Use `create_pizza_order` tool to create the order
+    3. Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_pizza_order` tool.
 
 - Set response status to input_required if asking for user order confirmation.
 - Set response status to error if there is an error while processing the request.
@@ -93,7 +93,7 @@ Provided below is the available pizza menu and it's related price:
             location=os.getenv("GCLOUD_LOCATION"),
             project=os.getenv("GCLOUD_PROJECT_ID"),
         )
-        self.tools = [create_order]
+        self.tools = [create_pizza_order]
         self.graph = create_react_agent(
             self.model,
             tools=self.tools,
