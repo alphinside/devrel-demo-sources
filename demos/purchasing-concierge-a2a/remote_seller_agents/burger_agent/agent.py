@@ -4,7 +4,6 @@ import uuid
 from crewai import Agent, Crew, LLM, Task, Process
 from crewai.tools import tool
 from dotenv import load_dotenv
-import os
 
 load_dotenv()
 
@@ -74,11 +73,10 @@ Provided below is the available burger menu and it's related price:
 # RULES
 
 - If user want to order something, strictly follow the following order:
-    1. User want to order something
-    2. Always re-clarify the order and ask confirmation by specifying all the ordered items and total price 
-    3. Use `create_order` tool to create the order after receiving user confirmation after re-clarification
-
-- ALWAYS Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_order` tool.
+    1. If user want to order something, always ask for clarification by specifying all the ordered items and total price 
+    2. Use `create_order` tool to create the order after receiving user confirmation after re-clarification
+    3. Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_order` tool.
+    
 - Set response status to input_required if asking for user order confirmation.
 - Set response status to error if there is an error while processing the request.
 - Set response status to completed if the request is complete.
@@ -91,10 +89,6 @@ Provided below is the available burger menu and it's related price:
         self.model = LLM(
             model="gemini-2.0-flash",  # Use base model name without provider prefix
             api_type="vertex_ai",  # Tell CrewAI to use Vertex AI
-            project=os.getenv("GCLOUD_PROJECT_ID"),  # Project from env or default
-            location=os.getenv(
-                "GCLOUD_LOCATION"
-            ),  # Region from env or default to us-central1
         )
         self.burger_agent = Agent(
             role="Burger Seller Agent",
@@ -133,27 +127,25 @@ Provided below is the available burger menu and it's related price:
         return self.get_agent_response(response)
 
     def get_agent_response(self, response):
-        breakpoint()
-        current_state = self.graph.get_state(response)
-        structured_response = current_state.values.get("structured_response")
-        if structured_response and isinstance(structured_response, ResponseFormat):
-            if structured_response.status == "input_required":
+        response_object = response.pydantic
+        if response_object and isinstance(response_object, ResponseFormat):
+            if response_object.status == "input_required":
                 return {
                     "is_task_complete": False,
                     "require_user_input": True,
-                    "content": structured_response.message,
+                    "content": response_object.message,
                 }
-            elif structured_response.status == "error":
+            elif response_object.status == "error":
                 return {
                     "is_task_complete": False,
                     "require_user_input": True,
-                    "content": structured_response.message,
+                    "content": response_object.message,
                 }
-            elif structured_response.status == "completed":
+            elif response_object.status == "completed":
                 return {
                     "is_task_complete": True,
                     "require_user_input": False,
-                    "content": structured_response.message,
+                    "content": response_object.message,
                 }
 
         return {

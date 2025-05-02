@@ -2,8 +2,6 @@ import json
 import uuid
 from typing import List
 
-from google.genai import types
-import base64
 
 from google.adk import Agent
 from google.adk.agents.readonly_context import ReadonlyContext
@@ -18,7 +16,6 @@ from common.types import (
     Task,
     TaskSendParams,
     TextPart,
-    DataPart,
     Part,
 )
 
@@ -194,6 +191,7 @@ Current active seller agent: {current_agent["active_agent"]}
             # Force user input back
             tool_context.actions.escalate = True
         elif task.status.state == TaskState.COMPLETED:
+            # Reset active agent is task is completed
             state["active_agent"] = "None"
 
         response = []
@@ -214,20 +212,8 @@ def convert_parts(parts: list[Part], tool_context: ToolContext):
 
 
 def convert_part(part: Part, tool_context: ToolContext):
+    # Currently only support text parts
     if part.type == "text":
         return part.text
-    elif part.type == "data":
-        return part.data
-    elif part.type == "file":
-        # Repackage A2A FilePart to google.genai Blob
-        # Currently not considering plain text as files
-        file_id = part.file.name
-        file_bytes = base64.b64decode(part.file.bytes)
-        file_part = types.Part(
-            inline_data=types.Blob(mime_type=part.file.mimeType, data=file_bytes)
-        )
-        tool_context.save_artifact(file_id, file_part)
-        tool_context.actions.skip_summarization = True
-        tool_context.actions.escalate = True
-        return DataPart(data={"artifact-file-id": file_id})
+
     return f"Unknown type: {part.type}"
