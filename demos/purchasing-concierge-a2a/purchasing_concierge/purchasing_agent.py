@@ -126,6 +126,8 @@ Current active seller agent: {current_agent["active_agent"]}
 
         remote_agent_info = []
         for card in self.cards.values():
+            print(f"Found agent card: {card.model_dump()}")
+            print("=" * 100)
             remote_agent_info.append(
                 {"name": card.name, "description": card.description}
             )
@@ -175,7 +177,7 @@ Current active seller agent: {current_agent["active_agent"]}
                 parts=[TextPart(text=task)],
                 metadata=metadata,
             ),
-            acceptedOutputModes=["text", "text/plain", "image/png"],
+            acceptedOutputModes=["text", "text/plain"],
             # pushNotification=None,
             metadata={"conversation_id": sessionId},
         )

@@ -26,7 +26,7 @@ def main(host, port):
             name="Burger Order Creation Tool",
             description="Helps with creating burger orders",
             tags=["burger order creation"],
-            examples=["I want to order 2 pepperoni burgers"],
+            examples=["I want to order 2 classic cheeseburgers"],
         )
         agent_card = AgentCard(
             name="burger_seller_agent",
