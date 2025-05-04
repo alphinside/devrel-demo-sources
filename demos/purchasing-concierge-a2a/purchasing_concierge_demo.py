@@ -35,59 +35,61 @@ async def get_response_from_agent(
     Returns:
         Text response from the backend service.
     """
-    try:
-        events_iterator: AsyncIterator[Event] = PURCHASING_AGENT_RUNNER.run_async(
-            user_id=USER_ID,
-            session_id=SESSION_ID,
-            new_message=types.Content(role="user", parts=[types.Part(text=message)]),
-        )
+    # try:
+    events_iterator: AsyncIterator[Event] = PURCHASING_AGENT_RUNNER.run_async(
+        user_id=USER_ID,
+        session_id=SESSION_ID,
+        new_message=types.Content(role="user", parts=[types.Part(text=message)]),
+    )
 
-        responses = []
-        async for event in events_iterator:  # event has type Event
-            if event.content.parts:
-                for part in event.content.parts:
-                    if part.function_call:
-                        formatted_call = f"```python\n{pformat(part.function_call.model_dump(), indent=2, width=80)}\n```"
-                        responses.append(
-                            gr.ChatMessage(
-                                role="assistant",
-                                content=f"{part.function_call.name}:\n{formatted_call}",
-                                metadata={"title": "🛠️ Tool Call"},
-                            )
+    responses = []
+    async for event in events_iterator:  # event has type Event
+        if event.content.parts:
+            for part in event.content.parts:
+                if part.function_call:
+                    formatted_call = f"```python\n{pformat(part.function_call.model_dump(), indent=2, width=80)}\n```"
+                    responses.append(
+                        gr.ChatMessage(
+                            role="assistant",
+                            content=f"{part.function_call.name}:\n{formatted_call}",
+                            metadata={"title": "🛠️ Tool Call"},
                         )
-                    elif part.function_response:
-                        formatted_response = f"```python\n{pformat(part.function_response.model_dump(), indent=2, width=80)}\n```"
+                    )
+                elif part.function_response:
+                    formatted_response = f"```python\n{pformat(part.function_response.model_dump(), indent=2, width=80)}\n```"
 
-                        responses.append(
-                            gr.ChatMessage(
-                                role="assistant",
-                                content=formatted_response,
-                                metadata={"title": "⚡ Tool Response"},
-                            )
+                    responses.append(
+                        gr.ChatMessage(
+                            role="assistant",
+                            content=formatted_response,
+                            metadata={"title": "⚡ Tool Response"},
                         )
+                    )
 
-            # Key Concept: is_final_response() marks the concluding message for the turn
-            if event.is_final_response():
-                if event.content and event.content.parts:
-                    # Extract text from the first part
-                    final_response_text = event.content.parts[0].text
-                elif event.actions and event.actions.escalate:
-                    # Handle potential errors/escalations
-                    final_response_text = f"Agent escalated: {event.error_message or 'No specific message.'}"
-                responses.append(
-                    gr.ChatMessage(role="assistant", content=final_response_text)
+        # Key Concept: is_final_response() marks the concluding message for the turn
+        if event.is_final_response():
+            if event.content and event.content.parts:
+                # Extract text from the first part
+                final_response_text = event.content.parts[0].text
+            elif event.actions and event.actions.escalate:
+                # Handle potential errors/escalations
+                final_response_text = (
+                    f"Agent escalated: {event.error_message or 'No specific message.'}"
                 )
-                yield responses
-                break  # Stop processing events once the final response is found
-
-            yield responses
-    except Exception as e:
-        yield [
-            gr.ChatMessage(
-                role="assistant",
-                content=f"Error communicating with agent: {str(e)}",
+            responses.append(
+                gr.ChatMessage(role="assistant", content=final_response_text)
             )
-        ]
+            yield responses
+            break  # Stop processing events once the final response is found
+
+        yield responses
+    # except Exception as e:
+    #     yield [
+    #         gr.ChatMessage(
+    #             role="assistant",
+    #             content=f"Error communicating with agent: {str(e)}",
+    #         )
+    #     ]
 
 
 if __name__ == "__main__":

@@ -14,8 +14,11 @@ import json
 
 
 class A2AClient:
-    def __init__(self, agent_card: AgentCard, auth: str | None = None):
-        self.url = agent_card.url
+    def __init__(self, agent_card: AgentCard, auth: str, agent_url: str):
+        # The URL accessed here should be the same as the one provided in the agent card
+        # However, in this demo we are using the URL provided in the key arguments
+        self.url = agent_url
+        # self.url = agent_card.url
         self.auth_header = None
 
         if agent_card.authentication:

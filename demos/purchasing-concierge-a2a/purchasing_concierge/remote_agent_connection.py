@@ -25,9 +25,9 @@ KNOWN_AUTH = {
 class RemoteAgentConnections:
     """A class to hold the connections to the remote agents."""
 
-    def __init__(self, agent_card: AgentCard):
+    def __init__(self, agent_card: AgentCard, agent_url: str):
         auth = KNOWN_AUTH.get(agent_card.name, None)
-        self.agent_client = A2AClient(agent_card, auth=auth)
+        self.agent_client = A2AClient(agent_card, auth=auth, agent_url=agent_url)
         self.card = agent_card
 
         self.conversation_name = None

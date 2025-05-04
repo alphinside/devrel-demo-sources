@@ -40,7 +40,11 @@ class PurchasingAgent:
             card_resolver = A2ACardResolver(address)
             try:
                 card = card_resolver.get_agent_card()
-                remote_connection = RemoteAgentConnections(card)
+                # The URL accessed here should be the same as the one provided in the agent card
+                # However, in this demo we are using the URL provided in the key arguments
+                remote_connection = RemoteAgentConnections(
+                    agent_card=card, agent_url=address
+                )
                 self.remote_agent_connections[card.name] = remote_connection
                 self.cards[card.name] = card
             except httpx.ConnectError:

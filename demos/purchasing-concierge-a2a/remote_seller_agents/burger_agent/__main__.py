@@ -31,6 +31,8 @@ def main(host, port):
         agent_card = AgentCard(
             name="burger_seller_agent",
             description="Helps with creating burger orders",
+            # The URL provided here is for the sake of demo,
+            # in production you should use a proper domain name
             url=f"http://{host}:{port}/",
             version="1.0.0",
             authentication=AgentAuthentication(schemes=["Basic"]),
