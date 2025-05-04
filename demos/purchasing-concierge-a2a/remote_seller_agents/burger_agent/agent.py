@@ -4,6 +4,7 @@ import uuid
 from crewai import Agent, Crew, LLM, Task, Process
 from crewai.tools import tool
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -84,13 +85,15 @@ Provided below is the available burger menu and it's related price:
 """
     SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
 
-    def __init__(self):
+    def invoke(self, query, sessionId) -> str:
         # Use environment variables for configuration
-        self.model = LLM(
+        model = LLM(
             model="gemini-2.0-flash",  # Use base model name without provider prefix
             api_type="vertex_ai",  # Tell CrewAI to use Vertex AI
+            project_id=os.getenv("GCLOUD_PROJECT_ID"),
+            location=os.getenv("GCLOUD_LOCATION"),
         )
-        self.burger_agent = Agent(
+        burger_agent = Agent(
             role="Burger Seller Agent",
             goal=(
                 "Help user to understand what is available on burger menu and price also handle order creation."
@@ -99,13 +102,13 @@ Provided below is the available burger menu and it's related price:
             verbose=False,
             allow_delegation=False,
             tools=[create_burger_order],
-            llm=self.model,
+            llm=model,
         )
 
-        self.agent_task = Task(
+        agent_task = Task(
             description=self.TaskInstruction,
             output_pydantic=ResponseFormat,
-            agent=self.burger_agent,
+            agent=burger_agent,
             expected_output=(
                 "A JSON object with 'status' and 'message' fields."
                 "Set response status to input_required if asking for user order confirmation."
@@ -114,16 +117,15 @@ Provided below is the available burger menu and it's related price:
             ),
         )
 
-        self.crew = Crew(
-            tasks=[self.agent_task],
-            agents=[self.burger_agent],
+        crew = Crew(
+            tasks=[agent_task],
+            agents=[burger_agent],
             verbose=False,
             process=Process.sequential,
         )
 
-    def invoke(self, query, sessionId) -> str:
         inputs = {"user_prompt": query, "session_id": sessionId}
-        response = self.crew.kickoff(inputs)
+        response = crew.kickoff(inputs)
         return self.get_agent_response(response)
 
     def get_agent_response(self, response):
