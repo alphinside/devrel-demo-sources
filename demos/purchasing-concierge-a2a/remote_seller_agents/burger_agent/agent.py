@@ -4,9 +4,13 @@ import uuid
 from crewai import Agent, Crew, LLM, Task, Process
 from crewai.tools import tool
 from dotenv import load_dotenv
+import litellm
 import os
 
 load_dotenv()
+
+litellm.vertex_project = os.getenv("GCLOUD_PROJECT_ID")
+litellm.vertex_location = os.getenv("GCLOUD_LOCATION")
 
 
 class ResponseFormat(BaseModel):
@@ -88,10 +92,7 @@ Provided below is the available burger menu and it's related price:
     def invoke(self, query, sessionId) -> str:
         # Use environment variables for configuration
         model = LLM(
-            model="gemini-2.0-flash",  # Use base model name without provider prefix
-            api_type="vertex_ai",  # Tell CrewAI to use Vertex AI
-            project_id=os.getenv("GCLOUD_PROJECT_ID"),
-            location=os.getenv("GCLOUD_LOCATION"),
+            model="vertex_ai/gemini-2.0-flash",  # Use base model name without provider prefix
         )
         burger_agent = Agent(
             role="Burger Seller Agent",
