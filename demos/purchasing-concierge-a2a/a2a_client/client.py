@@ -1,7 +1,7 @@
 import httpx
 import base64
 from typing import Any, AsyncIterable
-from common.types import (
+from a2a_types import (
     AgentCard,
     SendTaskRequest,
     SendTaskResponse,

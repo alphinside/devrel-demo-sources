@@ -1,6 +1,7 @@
 import json
 import uuid
 from typing import List
+import httpx
 
 
 from google.adk import Agent
@@ -8,8 +9,8 @@ from google.adk.agents.readonly_context import ReadonlyContext
 from google.adk.agents.callback_context import CallbackContext
 from google.adk.tools.tool_context import ToolContext
 from .remote_agent_connection import RemoteAgentConnections, TaskUpdateCallback
-from common.client import A2ACardResolver
-from common.types import (
+from a2a_client.card_resolver import A2ACardResolver
+from a2a_types import (
     AgentCard,
     Message,
     TaskState,
@@ -37,10 +38,13 @@ class PurchasingAgent:
         self.cards: dict[str, AgentCard] = {}
         for address in remote_agent_addresses:
             card_resolver = A2ACardResolver(address)
-            card = card_resolver.get_agent_card()
-            remote_connection = RemoteAgentConnections(card)
-            self.remote_agent_connections[card.name] = remote_connection
-            self.cards[card.name] = card
+            try:
+                card = card_resolver.get_agent_card()
+                remote_connection = RemoteAgentConnections(card)
+                self.remote_agent_connections[card.name] = remote_connection
+                self.cards[card.name] = card
+            except httpx.ConnectError:
+                print(f"ERROR: Failed to get agent card from : {address}")
         agent_info = []
         for ra in self.list_remote_agents():
             agent_info.append(json.dumps(ra))

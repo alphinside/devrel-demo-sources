@@ -1,8 +1,8 @@
-from common.server import A2AServer
-from common.types import AgentCard, AgentCapabilities, AgentSkill, AgentAuthentication
-from common.utils.push_notification_auth import PushNotificationSenderAuth
-from remote_seller_agents.burger_agent.task_manager import AgentTaskManager
-from remote_seller_agents.burger_agent.agent import BurgerSellerAgent
+from a2a_server.server import A2AServer
+from a2a_types import AgentCard, AgentCapabilities, AgentSkill, AgentAuthentication
+from a2a_server.push_notification_auth import PushNotificationSenderAuth
+from task_manager import AgentTaskManager
+from agent import BurgerSellerAgent
 import click
 import logging
 from dotenv import load_dotenv

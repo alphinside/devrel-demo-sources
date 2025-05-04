@@ -1,13 +1,13 @@
 from typing import Callable
 import uuid
-from common.types import (
+from a2a_types import (
     AgentCard,
     Task,
     TaskSendParams,
     TaskStatusUpdateEvent,
     TaskArtifactUpdateEvent,
 )
-from common.client import A2AClient
+from a2a_client.client import A2AClient
 from dotenv import load_dotenv
 import os
 

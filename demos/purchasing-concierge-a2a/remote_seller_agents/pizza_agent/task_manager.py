@@ -1,4 +1,4 @@
-from common.types import (
+from a2a_types import (
     SendTaskRequest,
     TaskSendParams,
     Message,
@@ -13,10 +13,10 @@ from common.types import (
     PushNotificationConfig,
     InvalidParamsError,
 )
-from common.server.task_manager import InMemoryTaskManager
-from remote_seller_agents.pizza_agent.agent import PizzaSellerAgent
-from common.utils.push_notification_auth import PushNotificationSenderAuth
-import common.server.utils as utils
+from a2a_server.task_manager import InMemoryTaskManager
+from agent import PizzaSellerAgent
+from a2a_server.push_notification_auth import PushNotificationSenderAuth
+import a2a_server.utils as utils
 from typing import Union
 import logging
 
