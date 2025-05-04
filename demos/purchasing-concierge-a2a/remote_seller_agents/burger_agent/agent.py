@@ -90,7 +90,6 @@ Provided below is the available burger menu and it's related price:
     SUPPORTED_CONTENT_TYPES = ["text", "text/plain"]
 
     def invoke(self, query, sessionId) -> str:
-        # Use environment variables for configuration
         model = LLM(
             model="vertex_ai/gemini-2.0-flash",  # Use base model name without provider prefix
         )
