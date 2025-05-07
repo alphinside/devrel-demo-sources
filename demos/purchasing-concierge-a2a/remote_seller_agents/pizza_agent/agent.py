@@ -76,9 +76,9 @@ Provided below is the available pizza menu and it's related price:
 # RULES
 
 - If user want to do something, you will be following this order:
-    1. Ensure the user already confirmed the order and total price. Sometime this confirmation is already given in the user query.
+    1. Always ensure the user already confirmed the order and total price. This confirmation may already given in the user query.
     2. Use `create_pizza_order` tool to create the order
-    3. Provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_pizza_order` tool.
+    3. Always provide the detailed ordered items, price breakdown and total, and order ID to the user after executing `create_pizza_order` tool.
 
 - Set response status to input_required if asking for user order confirmation.
 - Set response status to error if there is an error while processing the request.
