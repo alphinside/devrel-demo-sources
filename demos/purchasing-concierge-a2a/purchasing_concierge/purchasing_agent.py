@@ -54,15 +54,6 @@ class PurchasingAgent:
             agent_info.append(json.dumps(ra))
         self.agents = "\n".join(agent_info)
 
-    def register_agent_card(self, card: AgentCard):
-        remote_connection = RemoteAgentConnections(card)
-        self.remote_agent_connections[card.name] = remote_connection
-        self.cards[card.name] = card
-        agent_info = []
-        for ra in self.list_remote_agents():
-            agent_info.append(json.dumps(ra))
-        self.agents = "\n".join(agent_info)
-
     def create_agent(self) -> Agent:
         return Agent(
             model="gemini-2.0-flash-001",
@@ -74,7 +65,6 @@ class PurchasingAgent:
                 " tasks that can be performed by the seller agents."
             ),
             tools=[
-                self.list_remote_agents,
                 self.send_task,
             ],
         )
@@ -84,19 +74,17 @@ class PurchasingAgent:
         return f"""You are an expert purchasing delegator that can delegate the user product inquiry and purchase request to the
 appropriate seller remote agents.
 
-Discovery:
-- You can use `list_remote_agents` to list the available remote agents you
-can use to delegate the task.
-
 Execution:
 - For actionable tasks, you can use `send_task` to assign tasks to remote agents to perform.
-- Always assume that remote agent doesn't have access to user's conversation context. So each task you send to 
-  remote agent should include all the necessary context and information.
-- If user want to order something, strictly follow the following order:
-    1. User want to order something
-    2. Always re-clarify the order and ask confirmation by specifying all the ordered items and total price 
-    3. After receiving user confirmation after re-clarification, ALWAYS include context in the `send_task` tool that user already give
-       the final order confirmation.
+- When the remote agent is repeatedly asking for user confirmation, assume that the remote agent doesn't have access to user's conversation context. 
+    So improve the task description to include all the necessary information related to that agent
+- Never ask user permission when you want to connect with remote agents. If you need to make connection with multiple remote agents, directly
+    connect with them without asking user permission or asking user preference
+- Always show the detailed response information from the seller agent and propagate it properly to the user. 
+- If the remote seller is asking for confirmation, rely the confirmation question to the user if the user haven't do so. 
+- If the user already confirmed the related order in the past conversation history, you can confirm on behalf of the user
+- Do not give irrelevant context to remote seller agent. For example, ordered pizza item is not relevant for the burger seller agent
+- Never ask order confirmation to the remote seller agent 
 
 Please rely on tools to address the request, and don't make up the response. If you are not sure, please ask the user for more details.
 Focus on the most recent parts of the conversation primarily.
@@ -147,13 +135,13 @@ Current active seller agent: {current_agent["active_agent"]}
         This will send a message to the remote agent named agent_name.
 
         Args:
-          agent_name: The name of the agent to send the task to.
-          task: The comprehensive conversation context summary
+            agent_name: The name of the agent to send the task to.
+            task: The comprehensive conversation context summary
                 and goal to be achieved regarding user inquiry and purchase request.
-          tool_context: The tool context this method runs in.
+            tool_context: The tool context this method runs in.
 
         Yields:
-          A dictionary of JSON data.
+            A dictionary of JSON data.
         """
         if agent_name not in self.remote_agent_connections:
             raise ValueError(f"Agent {agent_name} not found")

@@ -49,6 +49,8 @@ class A2AClient:
         async with httpx.AsyncClient() as client:
             try:
                 # Image generation could take time, adding timeout
+                print(f"Send Remote Agent Task Request: {request.model_dump()}")
+                print("=" * 100)
                 request_kwargs = {
                     "url": self.url,
                     "json": request.model_dump(),
@@ -59,6 +61,8 @@ class A2AClient:
 
                 response = await client.post(**request_kwargs)
                 response.raise_for_status()
+                print(f"Send Remote Agent Task Response: {response.json()}")
+                print("=" * 100)
                 return response.json()
             except httpx.HTTPStatusError as e:
                 raise A2AClientHTTPError(e.response.status_code, str(e)) from e

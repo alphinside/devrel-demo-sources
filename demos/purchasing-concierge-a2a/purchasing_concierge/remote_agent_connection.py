@@ -42,11 +42,7 @@ class RemoteAgentConnections:
         request: TaskSendParams,
         task_callback: TaskUpdateCallback | None,
     ) -> Task | None:
-        print(f"Send Remote Agent Task Request: {request.model_dump()}")
-        print("=" * 100)
         response = await self.agent_client.send_task(request.model_dump())
-        print(f"Send Remote Agent Task Response: {response.model_dump()}")
-        print("=" * 100)
         merge_metadata(response.result, request)
         # For task status updates, we need to propagate metadata and provide
         # a unique message id.
